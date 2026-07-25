@@ -25,9 +25,107 @@ from ..models.track import GTPTrack
 from ..models.measure import GTPMeasure
 from ..models.beat import GTPBeat
 from ..models.note import GTPNote, BendData
+from ..models.chord import Chord
 from ..utils.constants import (
     NoteDuration, TechniqueType, DURATION_RATIO,
 )
+
+
+# ============================================================
+# GP3-5 和弦映射辅助 (v1.4.0 新增)
+# ============================================================
+# PyGuitarPro 的 Chord 对象已经预计算好 name 字符串 (如 'F#m', 'C#'),
+# 同时暴露结构化字段 (root/bass/type/extension/sharp). 这里把结构化字段
+# 映射到 ApolloTab Chord 模型, 与 GPIF 解析保持对称. 映射成功后用
+# 结构化字段构造, 失败时返回 None (不显示该 chord).
+
+# PitchClass.value (0-11) -> 可读名. 跟随 chord.sharp 决定升降号方向.
+_PITCH_SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+_PITCH_FLAT_NAMES  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+
+# PyGuitarPro ChordType (15 种) -> ApolloTab suffix
+# 注意: PyGuitarPro 的 type 字段已包含 7/maj7/sus4 等, ChordExtension 仅追加 9/11/13.
+_GP3_TYPE_SUFFIX = {
+    'major':                   '',
+    'seventh':                 '7',
+    'majorSeventh':            'maj7',
+    'sixth':                   '6',
+    'minor':                   'm',
+    'minorSeventh':            'm7',
+    'minorMajor':              'm(maj7)',
+    'minorSixth':              'm6',
+    'suspendedSecond':         'sus2',
+    'suspendedFourth':         'sus4',
+    'seventhSuspendedSecond':  '7sus2',
+    'seventhSuspendedFourth':  '7sus4',
+    'diminished':              'dim',
+    'augmented':               'aug',
+    'power':                   '5',
+}
+
+# PyGuitarPro ChordExtension (4 种) -> ApolloTab extensions (附加 9/11/13)
+_GP3_EXT_EXTENSIONS = {
+    'none':        '',
+    'ninth':       '9',
+    'eleventh':    '11',
+    'thirteenth':  '13',
+}
+
+
+def _pitch_class_to_name(pc, sharp: bool) -> str:
+    """PyGuitarPro PitchClass -> 可读名 (e.g. 'C', 'F#', 'Bb')
+
+    参数:
+        pc:    guitarpro.models.PitchClass 实例, None 返回空串
+        sharp: True 用升号 (C#/F#), False 用降号 (Db/Gb); 通常取 chord.sharp
+    """
+    if pc is None:
+        return ''
+    names = _PITCH_SHARP_NAMES if sharp else _PITCH_FLAT_NAMES
+    return names[int(pc.value) % 12]
+
+
+def _convert_gp3_chord(gp_chord) -> Optional[Chord]:
+    """PyGuitarPro Chord (GP3-5) -> ApolloTab Chord
+
+    流程:
+      1. 防御性判空: gp_chord / gp_chord.root / gp_chord.type 任一缺失返回 None
+      2. 映射结构化字段 (root/bass/type/extension/sharp) 到 ApolloTab Chord
+      3. 验证: 构造出的 name 应与 PyGuitarPro 预计算 name 一致
+         不一致时返回 None (按用户偏好, 不显示异常 chord)
+
+    参数:
+        gp_chord: guitarpro.models.Chord 实例, None 返回 None
+
+    返回:
+        ApolloTab Chord 实例, 或 None (缺失/无效)
+    """
+    if gp_chord is None or gp_chord.root is None or gp_chord.type is None:
+        return None
+
+    sharp = bool(getattr(gp_chord, 'sharp', True))
+    key = _pitch_class_to_name(gp_chord.root, sharp)
+    if not key:
+        return None
+
+    bass = _pitch_class_to_name(gp_chord.bass, sharp) if gp_chord.bass else None
+
+    type_name = (gp_chord.type.name or '') if gp_chord.type else ''
+    suffix = _GP3_TYPE_SUFFIX.get(type_name) or _GP3_TYPE_SUFFIX.get(type_name.lower(), '')
+
+    ext = getattr(gp_chord, 'extension', None)
+    ext_name = (ext.name or 'none') if ext else 'none'
+    extensions = _GP3_EXT_EXTENSIONS.get(ext_name) or _GP3_EXT_EXTENSIONS.get(ext_name.lower(), '')
+
+    chord = Chord(key=key, bass=bass, suffix=suffix, extensions=extensions)
+
+    # 验证: 构造出的 name 应与 PyGuitarPro 预计算的 name 一致
+    # 不一致 → 枚举映射有遗漏, 按用户偏好不显示
+    expected = getattr(gp_chord, 'name', None)
+    if expected and chord.name != expected:
+        return None
+
+    return chord
 
 
 class GTPParser:
@@ -260,22 +358,27 @@ class GTPParser:
         # 时值转换: guitarpro.Duration.value → NoteDuration 枚举
         dur_value = raw_beat.duration.value
         duration = self._duration_from_value(dur_value)
-        
+
         beat = GTPBeat(
             duration=duration,
             is_dotted=raw_beat.duration.isDotted,
             text=raw_beat.text,
         )
-        
+
         # 转换该拍的所有音符
         for raw_note in raw_beat.notes:
             note = self._convert_note(raw_note, duration, raw_beat.duration.isDotted)
             beat.notes.append(note)
-        
+
         # 如果没有音符且没有文本标注，视为休止符
         if not beat.notes and not beat.text:
             beat.is_rest = True
-        
+
+        # [v1.4.0 新增] GP3-5 和弦提取: PyGuitarPro 把 chord 存在 beat.effect.chord
+        # (不是 beat.chord, 也不是 beat.text). 防御性判空 effect 再调用映射.
+        if raw_beat.effect is not None:
+            beat.chord = _convert_gp3_chord(getattr(raw_beat.effect, 'chord', None))
+
         return beat
 
     def _convert_note(self, raw_note: guitarpro.models.Note,

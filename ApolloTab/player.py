@@ -18,12 +18,12 @@
 
 设计原则:
   - 高内聚低耦合: 所有GTP相关逻辑集中在此类中
-  - 最小化依赖: 仅依赖 ApolloTab 内部模块和 PyQt5
+  - 最小化依赖: 仅依赖 gtp_engine 内部模块和 PyQt5
   - 线程安全: 音频操作在独立线程中执行
   - 优雅降级: 缺少依赖时提供有意义的错误信息
 
 使用示例:
-    from ApolloTab.player import GTPPlayer
+    from gtp_engine.player import GTPPlayer
 
     # 创建播放器实例
     player = GTPPlayer()
@@ -47,10 +47,10 @@
     player.shutdown()
 
 依赖库:
-  - ApolloTab.parser (parse_score 智能调度, parse_gtp, GTPParser, GP7Parser)
-  - ApolloTab.renderer (TabRenderer, RenderConfig)
-  - ApolloTab.audio (MidiConverter, SynthEngine)
-  - ApolloTab.models (GTPSong, GTPTrack)
+  - gtp_engine.parser (parse_score 智能调度, parse_gtp, GTPParser, GP7Parser)
+  - gtp_engine.renderer (TabRenderer, RenderConfig)
+  - gtp_engine.audio (MidiConverter, SynthEngine)
+  - gtp_engine.models (GTPSong, GTPTrack)
   - PyQt5 (QPixmap, 用于图像渲染)
 
 创建日期: 2026-06-12

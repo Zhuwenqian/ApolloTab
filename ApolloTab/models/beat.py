@@ -14,6 +14,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 from .note import GTPNote
+from .chord import Chord
 from ..utils.constants import NoteDuration
 
 
@@ -28,6 +29,7 @@ class GTPBeat:
       is_dotted: 是否附点
       text:      该拍上的文字标注（如演奏提示）
       is_rest:   是否为休止符拍
+      chord:     该拍关联的和弦(Chord 对象), None=无和弦
 
     GP7/GP8 扩展字段 (v0.4.0 新增):
       dynamics:          力度标记 (None/PPP/PP/P/MP/MF/F/FF/FFF，对应MIDI力度15~127)
@@ -51,6 +53,7 @@ class GTPBeat:
     is_dotted: bool = False                              # 是否附点
     text: Optional[str] = None                           # 文字标注
     is_rest: bool = False                                # 是否休止符
+    chord: Optional[Chord] = None                        # 和弦 (v1.4.0 新增)
 
     # === GP7/GP8 扩展字段 (v0.4.0) ===
     dynamics: Optional[str] = None                       # 力度标记: PPP/PP/P/MP/MF/F/FF/FFF
