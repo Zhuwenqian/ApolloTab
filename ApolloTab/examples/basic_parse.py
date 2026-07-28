@@ -48,9 +48,9 @@ def main():
     
     # ===== 参数检查 =====
     if len(sys.argv) < 2:
-        print("用法: python basic_parse.py <文件路径>")
+        print("用法: python basic_parse.py <文件路径.gp5>")
         print("示例: python basic_parse.py my_song.gp5")
-        print("\n支持的格式: .gp3, .gp4, .gp5, .gpx, .gp (GP7/GP8)")
+        print("\n支持的格式: .gp3, .gp4, .gp5, .gpx")
         sys.exit(1)
     
     file_path = sys.argv[1]
@@ -83,7 +83,7 @@ def main():
     except Exception as e:
         print(f"[错误] 解析失败: {e}")
         print("\n可能的原因:")
-        print("  1. 文件格式不支持（仅支持 .gp3/.gp4/.gp5/.gpx/.gp）")
+        print("  1. 文件格式不支持（仅支持 .gp3/.gp4/.gp5/.gpx）")
         print("  2. 文件已损坏")
         print("  3. 缺少 pyguitarpro 依赖 (pip install pyguitarpro)")
         sys.exit(1)

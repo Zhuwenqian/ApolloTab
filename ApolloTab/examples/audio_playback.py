@@ -165,23 +165,15 @@ def main():
     except Exception as e:
         print(f"[警告] SoundFont加载失败: {e}，使用默认音色")
     
-    # [v1.4.0] MidiConverter 在 convert() 时已自动生成 Bank Select + Program Change 事件，
-    # 音色由 GP 文件本身的 track.instrument 决定（详见 player.rebuild_audio_events 注释）。
-    # 此处不再需要手动调用 engine.set_instrument() 覆盖，避免覆盖 GP7/GP8 解析出的具体音色。
-
+    # 设置乐器音色
+    instrument = target_track.instrument or 27  # 默认电吉他
+    engine.set_instrument(0, instrument)  # 通道0
+    print(f"✓ 已设置乐器: 通道0 → MIDI程序号{instrument} (电吉他)")
+    
     # ===== 步骤4: 加载事件并准备播放 =====
     print("\n正在加载MIDI事件...")
     engine.load_events(events, bpm=song.tempo)
-
-    # [v1.4.0] 本地计算总时长 (SynthEngine 不再暴露 estimated_duration 属性)
-    # 公式: 总 tick → 毫秒 = max_tick * 60000 / (bpm * ticks_per_beat)
-    ticks_per_beat = 480
-    if events:
-        last_tick = max(e.time for e in events)
-        total_duration = last_tick * 60000.0 / (song.tempo * ticks_per_beat) / 1000.0  # 秒
-    else:
-        total_duration = 0.0
-    print(f"✓ 就绪! 总时长约 {total_duration:.1f}秒")
+    print(f"✓ 就绪! 总时长约 {engine.estimated_duration:.1f}秒")
     
     # ===== 步骤5: 交互式播放控制 =====
     print(f"\n{'=' * 60}")
@@ -196,7 +188,7 @@ def main():
     stop_progress = threading.Event()
     progress_thread = threading.Thread(
         target=show_progress,
-        args=(engine, stop_progress, total_duration),
+        args=(engine, stop_progress),
         daemon=True
     )
     progress_thread.start()
@@ -256,59 +248,59 @@ def main():
             engine.stop()
         
         print("✓ 音频引擎已关闭")
-        print("\n感谢使用 ApolloTab!")
+        print("\n感谢使用 gtp-engine!")
 
 
-def show_progress(engine: SynthEngine, stop_event: threading.Event,
-                  total_duration: float):
+def show_progress(engine: SynthEngine, stop_event: threading.Event):
     """
     在后台线程中显示播放进度条
-
+    
     参数:
-        engine:          SynthEngine实例
-        stop_event:      threading.Event，用于通知线程退出
-        total_duration:  歌曲总时长（秒），由调用方从 events 计算后传入
-
+        engine:     SynthEngine实例
+        stop_event: threading.Event，用于通知线程退出
+        
     显示格式:
       ▶ 播放中... 01:23 / 04:56 [████████████░░░░░░░] 28%
     """
     last_time = 0
-
+    
     while not stop_event.is_set():
         if engine.is_playing and not engine.is_paused:
             current_time = engine.current_time_ms / 1000.0  # 转换为秒
-
+            total_time = engine.estimated_duration
+            
             # 避免频繁更新（每500ms更新一次）
             if abs(current_time - last_time) >= 0.5 or last_time == 0:
                 last_time = current_time
-
+                
                 # 计算进度百分比
-                if total_duration > 0:
-                    progress = min(100, (current_time / total_duration) * 100)
+                if total_time > 0:
+                    progress = min(100, (current_time / total_time) * 100)
                 else:
                     progress = 0
-
+                
                 # 构建进度条（50字符宽）
                 bar_width = 50
                 filled = int(bar_width * progress / 100)
                 bar = "█" * filled + "░" * (bar_width - filled)
-
+                
                 # 格式化时间
                 current_str = format_time(current_time)
-                total_str = format_time(total_duration)
-
+                total_str = format_time(total_time)
+                
                 # 打印进度（使用\r实现原地更新）
                 status = "▶" if engine.is_playing else "⏸"
                 line = f"\r  {status} {current_str} / {total_str} [{bar}] {progress:5.1f}%"
                 print(line, end="", flush=True)
-
+        
         # 检查是否自然结束
         if not engine.is_playing and not engine.is_paused:
             # 播放结束
-            total_str = format_time(total_duration)
+            total_time = engine.estimated_duration
+            total_str = format_time(total_time)
             print(f"\r  ✓ 完成! 总时长: {total_str}{' ' * 20}")
             break
-
+        
         time.sleep(0.1)
 
 

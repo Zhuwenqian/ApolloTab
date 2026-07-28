@@ -42,10 +42,10 @@ def main():
     
     # ===== 参数检查 =====
     if len(sys.argv) < 2:
-        print("用法: python render_tab.py <文件路径> [音轨索引] [输出目录]")
+        print("用法: python render_tab.py <文件路径.gp5> [音轨索引] [输出目录]")
         print("示例: python render_tab.py my_song.gp5 0 ./output")
         print("\n参数说明:")
-        print("  文件路径   - .gp3/.gp4/.gp5/.gpx/.gp 文件（必填）")
+        print("  文件路径   - .gp3/.gp4/.gp5/.gpx 文件（必填）")
         print("  音轨索引   - 要渲染的音轨号，默认0（可选）")
         print("  输出目录   - 图片保存位置，默认当前目录（可选）")
         sys.exit(1)
@@ -167,8 +167,8 @@ def main():
         print(f"      尺寸: {page.width()}x{page.height()}px")
     
     # ===== 输出总结 =====
-    total_size = sum(os.path.getsize(f) for f in saved_files) if saved_files else 0
-
+    total_size = sum(os.path.GetSize(f) for f in saved_files) if saved_files else 0
+    
     print(f"\n{'=' * 60}")
     print("✅ 渲染完成!")
     print("=" * 60)
@@ -177,10 +177,10 @@ def main():
     print(f"   输出目录: {os.path.abspath(output_dir)}")
     if total_size > 0:
         print(f"   总大小: {total_size / 1024 / 1024:.2f} MB")
-
+    
     print(f"\n📄 输出文件列表:")
     for i, f in enumerate(saved_files, 1):
-        size_kb = os.path.getsize(f) / 1024
+        size_kb = os.path.GetSize(f) / 1024
         print(f"   {i}. {os.path.basename(f)} ({size_kb:.1f} KB)")
     
     # ===== 高级功能演示：访问布局数据 =====
@@ -215,8 +215,8 @@ def batch_render(input_dir: str, output_dir: str = "./rendered"):
     """
     from ApolloTab import render_gtp
     
-    # 支持的文件扩展名（含 GP7/GP8 的 .gp）
-    supported_ext = ('.gp3', '.gp4', '.gp5', '.gpx', '.gp')
+    # 支持的文件扩展名
+    supported_ext = ('.gp3', '.gp4', '.gp5', '.gpx')
     
     # 扫描目录
     files = [

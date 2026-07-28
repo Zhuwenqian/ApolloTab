@@ -17,7 +17,7 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Any
-from ..utils.constants import TechniqueType, NoteDuration
+from ..utils.constants import TechniqueType, NoteDuration, BendStyle
 
 
 @dataclass
@@ -37,6 +37,7 @@ class BendData:
     调用来源: guitarpro库的BendEffect对象 (开源项目 guitarpro)
     """
     bend_type: str = "bend"           # 推弦类型
+    bend_style: BendStyle = BendStyle.DEFAULT  # 推弦风格(影响渲染曲线弧度)
     value: int = 0                    # 推弦量
     max_value: int = 0                # 峰值
     points: list = field(default_factory=list)  # [(pos, val, vibrato), ...]

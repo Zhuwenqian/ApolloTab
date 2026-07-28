@@ -1647,13 +1647,18 @@ class GpifParser:
                 measure.is_anacrusis = mb_data['is_anacrusis']
 
                 # === 处理 Bar 的 Voices ===
+                # GPIF 中每个 Bar 最多 4 个 voice (<Voices>0 -1 -1 -1</Voices>):
+                #   - 有效 voice ID: 该 voice 有 beats, 正常处理
+                #   - 无效 voice ID (-1): 未使用槽位, 直接跳过
+                #   - 若 Bar 内所有 voice 都无效: 添加 1 个空拍占位(保持小节结构)
+                # 注意: 不要为每个 -1 voice 各加 1 个空拍, 否则会污染小节节奏
+                #   (例如 <Voices>0 -1 -1 -1</Voices> 会错误地多出 3 个空拍,
+                #    4/4 小节内 2 个 half 音 + 3 个空 quarter rest = 7 quarter beats 溢出)
                 voice_ids = bar_data.get('voice_ids', [])
+                has_active_voice = False
                 for voice_id in voice_ids:
                     if voice_id == _INVALID_ID:
-                        # 无效 Voice → 添加空拍保持结构
-                        empty_beat = GTPBeat()
-                        empty_beat.is_rest = True
-                        measure.beats.append(empty_beat)
+                        # 无效 voice 槽位 → 跳过, 不添加空拍
                         continue
 
                     beat_ids = self._voices_of_bar.get(voice_id, [])
@@ -1731,6 +1736,13 @@ class GpifParser:
                             beat.is_rest = True
 
                         measure.beats.append(beat)
+                        has_active_voice = True
+
+                # 所有 voice 都无效时, 添加 1 个空拍占位(保持小节结构)
+                if not has_active_voice:
+                    empty_beat = GTPBeat()
+                    empty_beat.is_rest = True
+                    measure.beats.append(empty_beat)
 
                 track.measures.append(measure)
                 track_idx += 1
