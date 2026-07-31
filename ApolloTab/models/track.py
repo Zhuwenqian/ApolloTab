@@ -8,7 +8,7 @@
 创建日期: 2026-06-06
 最后更新: 2026-06-30 (v1.3.0: 新增 percussion_articulations 字段,
                    用于 GP7/GP8 鼓轨 InstrumentArticulation → MIDI note 映射)
-依赖: Python 3.8+ dataclasses
+依赖: Python 3.11+ dataclasses
 ============================================================
 """
 

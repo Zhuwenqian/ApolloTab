@@ -11,7 +11,7 @@
 创建日期: 2026-06-07
 最后更新: 2026-06-30 (v1.3.0: 鼓轨 Bank Select 拆分为 CC#0=1/CC#32=0;
                    节拍器混入事件; 修复 GP7/GP8 GPIF String 弦号映射方向)
-依赖: Python 3.8+ dataclasses, gtp_engine.models
+依赖: Python 3.11+ dataclasses, gtp_engine.models
 设计原则:
   - 时间精度: 使用 tick(脉冲)作为最小时间单位，避免浮点累积误差
   - 标准MIDI格式: 兼容标准 MIDI 事件(note_on/note_off/tempo)

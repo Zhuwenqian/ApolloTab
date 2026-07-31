@@ -1,7 +1,7 @@
 # ============================================================
 # pyproject.toml - ApolloTab Python包配置
 # 用途: 定义PyPI发布所需的元数据、依赖和构建配置
-# 构建工具: setuptools + wheel (兼容Python 3.8+)
+# 构建工具: setuptools + wheel (兼容Python 3.11+)
 # 安装命令: pip install .
 # 发布命令: python -m build && twine upload dist/*
 # 创建日期: 2026-06-12
@@ -104,7 +104,7 @@ line_length = 100
 
 # mypy类型检查配置
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

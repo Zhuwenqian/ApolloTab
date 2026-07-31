@@ -1,6 +1,6 @@
 # ApolloTab
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: LGPL 2.1](https://img.shields.io/badge/License-LGPL-2.1-orange.svg)](https://opensource.org/licenses/LGPL-2.1/)
 [![PyPI version](https://badge.fury.io/py/ApolloTab.svg)](https://pypi.org/project/ApolloTab/)
 
@@ -510,7 +510,7 @@ Issues and Pull Requests are welcome!
 
 **Version**: v1.3.0
 **Last Updated**: 2026-06-30
-**Compatibility**: Windows / Linux / macOS (Python 3.8+)
+**Compatibility**: Windows / Linux / macOS (Python 3.11+)
 
 ***
 
@@ -518,7 +518,7 @@ Issues and Pull Requests are welcome!
 
 # ApolloTab（中文）
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: LGPL 2.1](https://img.shields.io/badge/License-LGPL_2.1-orange.svg)](https://opensource.org/licenses/LGPL-2.1/)
 [![PyPI version](https://badge.fury.io/py/ApolloTab.svg)](https://pypi.org/project/ApolloTab/)
 
@@ -1049,4 +1049,4 @@ mypy ApolloTab/
 
 **版本**: v1.3.0
 **最后更新**: 2026-06-30
-**兼容性**: Windows / Linux / macOS (Python 3.8+)
+**兼容性**: Windows / Linux / macOS (Python 3.11+)

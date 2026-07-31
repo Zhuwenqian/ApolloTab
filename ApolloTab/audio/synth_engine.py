@@ -256,7 +256,7 @@ class SynthEngine:
                         os.environ['PATH'] = _dll_dir + os.pathsep + _old_path
                     print(f"[SynthEngine] 已添加DLL目录到PATH: {_dll_dir}")
                     
-                    # Python 3.8+ 同时添加到DLL搜索目录(用于运行时加载)
+                    # Python 3.11+ 同时添加到DLL搜索目录(用于运行时加载)
                     if hasattr(os, 'add_dll_directory'):
                         try:
                             os.add_dll_directory(_dll_dir)

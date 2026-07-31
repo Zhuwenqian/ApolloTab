@@ -7,7 +7,7 @@
 
 创建日期: 2026-06-06
 最后更新: 2026-06-30 (v1.3.0: 修正 string 字段注释, 明确 GP7/GP8 GPIF 弦号需反转映射)
-依赖: Python 3.8+ dataclasses
+依赖: Python 3.11+ dataclasses
 设计原则:
   - 可扩展: 通过 techniques 列表支持任意数量技巧标记
   - 向后兼容: GP7/GP8 新增字段均带默认值，GP3-5 解析路径不受影响

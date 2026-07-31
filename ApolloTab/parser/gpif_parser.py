@@ -31,7 +31,7 @@
 创建日期: 2026-06-28 (v0.4.0: GP7/GP8 支持)
 最后更新: 2026-06-30 (v1.3.0: 解析 <Articulations> 节点;
                    修复 GP7/GP8 GPIF String 弦号映射方向)
-依赖: Python 3.8+ 标准库 xml.etree.ElementTree + copy
+依赖: Python 3.11+ 标准库 xml.etree.ElementTree + copy
 ============================================================
 """
 
