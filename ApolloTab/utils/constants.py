@@ -416,7 +416,9 @@ class RenderConfig:
     # 如需更高分辨率(如300DPI打印), 可设为 page_width=2480, page_height=3508
     PAGE_WIDTH_PX = 1000             # 每页渲染宽度(px) - 调整效果: 越宽每行容纳越多音符
     PAGE_HEIGHT_PX = 1414            # 每页渲染高度(px) - A4标准比例(=width×√2), 调整效果: 越高每页容纳更多行
-    PAGE_MARGIN_TOP = 60             # 页面上边距(px) - 用于标题和调号信息区
+    PAGE_MARGIN_TOP = 100            # 页面上边距(px) - 用于标题和调号信息区
+                                    # v1.4.0: 60→100 给第一行六线谱上方留出 ~40px 空间
+                                    #        容纳 chord 名 (12pt Bold + 圆角背景, 约 20px 高)
     PAGE_MARGIN_LEFT = 40            # 页面左边距(px)
     PAGE_MARGIN_RIGHT = 40           # 页面右边距(px)
     PAGE_MARGIN_BOTTOM = 40          # 页面下边距(px)

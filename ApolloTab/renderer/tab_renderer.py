@@ -719,8 +719,12 @@ class TabRenderer:
         # 4. 绘制每个拍（音符）
         for b_layout in m_layout.beats:
             self._draw_beat(painter, system, b_layout, m_layout)
-        
-        # 4. 绘制小节线
+
+        # 4.5. 绘制和弦名 (v1.4.0 新增: 谱表顶部上方, 自动过滤连续相同)
+        #     音轨中有 chord 就画, 没有不管
+        self._draw_chord_names(painter, system, m_layout)
+
+        # 5. 绘制小节线
         self._draw_barline(painter, m_layout.x_end, system.y_tab_top, system.y_tab_bottom)
 
     def _draw_barline(self, painter: QPainter, x: int, y_top: int,
@@ -1723,6 +1727,94 @@ class TabRenderer:
             dot_y = (y_top + y_bottom) // 2
             painter.setBrush(QColor(self.cfg.theme.COLOR_TEXT))
             painter.drawEllipse(dot_x, dot_y, 3, 3)
+
+    # ============================================================
+    # 和弦名渲染 (v1.4.0 新增: 从主程序 overlay 迁移)
+    # ============================================================
+
+    @staticmethod
+    def _first_chord_in_sequence(beats: List[BeatLayout]) -> List[BeatLayout]:
+        """
+        [v1.4.0] 在一段连续相同和弦中只保留第一个 BeatLayout
+
+        用途: 避免一段 C C C 在每个 beat 上方都画 "C", 视觉冗余.
+              与 GP 原版行为一致 (只在新一段首个 chord 上方显示).
+
+        参数:
+            beats: BeatLayout 列表 (来自 m_layout.beats)
+
+        返回:
+            过滤后的 BeatLayout 列表, 保留每段相同 chord.name 的第一个
+        """
+        result: List[BeatLayout] = []
+        prev_name: Optional[str] = None
+        for b_layout in beats:
+            beat = b_layout.beat
+            chord = getattr(beat, 'chord', None)
+            if chord is None:
+                continue
+            if chord.name != prev_name:
+                result.append(b_layout)
+                prev_name = chord.name
+        return result
+
+    def _draw_chord_names(self, painter: QPainter,
+                          system: SystemLayout,
+                          m_layout: MeasureLayout) -> None:
+        """
+        [v1.4.0] 绘制当前小节的所有 chord 名称 (在谱表顶部上方)
+
+        位置:
+          - Y: system.y_top - 16 (info bar 外, system 顶部上方 16px)
+          - X: 水平居中于 beat.x_center
+
+        样式:
+          - 文字色: theme.COLOR_TECHNIQUE (主色, dark=#F97316 / light=#D97706)
+          - 背景色: theme.COLOR_HEADER_BG (浅色背景框, dark=#252538 / light=#F8F9FA)
+          - 字号: 12pt Bold
+          - 圆角矩形背景 4px radius
+
+        触发条件: track 中存在 beat.chord (音轨中有就画, 没有不管)
+        """
+        filtered = self._first_chord_in_sequence(m_layout.beats)
+        if not filtered:
+            return
+
+        # Y 位置: system 顶部上方 16px
+        text_y = int(system.y_top) - 16
+        # 字号
+        font = QFont(self.cfg.NOTE_FONT_FAMILY, 12, QFont.Bold)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+
+        # 颜色
+        text_color = QColor(self.cfg.theme.COLOR_TECHNIQUE)
+        bg_color = QColor(self.cfg.theme.COLOR_HEADER_BG)
+        bg_color.setAlpha(220)
+
+        for b_layout in filtered:
+            chord_name = b_layout.beat.chord.name
+            text_width = fm.horizontalAdvance(chord_name)
+            x_center = int(b_layout.x_center)
+            # 背景框: 居中于 x_center, 上下留 4px padding
+            bg_rect = QRect(
+                x_center - text_width // 2 - 4,
+                text_y - fm.height() + 4,
+                text_width + 8,
+                fm.height() + 2,
+            )
+            painter.fillRect(bg_rect, bg_color)
+            # 圆角边框
+            pen = QPen(text_color, 1)
+            painter.setPen(pen)
+            painter.drawRoundedRect(bg_rect, 4, 4)
+            # 文字
+            painter.setPen(text_color)
+            painter.drawText(
+                x_center - text_width // 2,
+                text_y,
+                chord_name,
+            )
 
     # ============================================================
     # 页码绘制

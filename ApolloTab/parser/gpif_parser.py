@@ -31,7 +31,7 @@
 创建日期: 2026-06-28 (v0.4.0: GP7/GP8 支持)
 最后更新: 2026-06-30 (v1.3.0: 解析 <Articulations> 节点;
                    修复 GP7/GP8 GPIF String 弦号映射方向)
-依赖: Python 3.8+ 标准库 xml.etree.ElementTree + copy
+依赖: Python 3.11+ 标准库 xml.etree.ElementTree + copy
 ============================================================
 """
 
@@ -45,6 +45,7 @@ from ..models.track import GTPTrack, PercussionArticulation
 from ..models.measure import GTPMeasure
 from ..models.beat import GTPBeat
 from ..models.note import GTPNote, BendData
+from ..models.chord import Chord
 from ..utils.constants import NoteDuration, TechniqueType, BendType, BendStyle, VibratoType
 
 
@@ -62,6 +63,15 @@ _BEND_POINT_POSITION_FACTOR = 60.0 / 100.0
 # 推弦值转换因子: GPX 单位 25/四分音符 → 内部 1/四分音符
 # 调整效果: GPX 中 25 = 1/4 音 → 内部 1；GPX 中 100 = Full → 内部 4
 _BEND_POINT_VALUE_FACTOR = 1.0 / 25.0
+
+# GPIF 升降号字符串 → 实际符号
+_CHORD_ACCIDENTAL_MAP: Dict[str, str] = {
+    'Natural': '',
+    'Sharp': '#',
+    'Flat': 'b',
+    'DoubleSharp': '##',
+    'DoubleFlat': 'bb',
+}
 
 
 # ============================================================
@@ -85,6 +95,110 @@ class _GpifSound:
     def __init__(self):
         self.program: int = 0                       # MIDI Program Change
         self.bank: int = 0                          # MIDI Bank
+
+
+# ============================================================
+# 和弦解析辅助函数 (v1.4.0 新增)
+# ============================================================
+
+def _chord_note_name(note_el: Optional[ET.Element]) -> str:
+    """
+    把 <KeyNote> 或 <BassNote> 节点转为可读名 (e.g. 'C', 'F#', 'Bb')
+
+    参数:
+        note_el: <KeyNote> 或 <BassNote> XML 元素, None 返回空字符串
+    """
+    if note_el is None:
+        return ''
+    step = note_el.get('step', 'C')
+    acc = note_el.get('accidental', 'Natural')
+    return step + _CHORD_ACCIDENTAL_MAP.get(acc, '')
+
+
+def _build_chord_from_xml(chord_el: ET.Element) -> Optional[Chord]:
+    """
+    把一个 GPIF <Chord> 定义节点转换为 Chord 数据对象
+
+    后缀优先级:
+      13 抑制 7/9;  6 抑制 7;  m7b5 不重复 7
+      sus4 不带 7/9/11/13 扩展
+
+    参数:
+        chord_el: 包含 <KeyNote>/<BassNote>/<Degree> 子节点的 <Chord> 元素
+
+    返回:
+        Chord 对象, 若缺 KeyNote 返回 None
+    """
+    key_el = chord_el.find('KeyNote')
+    if key_el is None:
+        return None
+    key_name = _chord_note_name(key_el)
+    if not key_name:
+        return None
+    bass_name = _chord_note_name(chord_el.find('BassNote'))
+
+    # 收集 (interval, alteration) 映射
+    degree_map: Dict[str, str] = {}
+    for d in chord_el.iter('Degree'):
+        interval = d.get('interval', '')
+        alt = d.get('alteration', '')
+        if interval:
+            degree_map[interval] = alt
+
+    # 基础后缀
+    third = degree_map.get('Third', '')
+    fifth = degree_map.get('Fifth', '')
+    fourth = degree_map.get('Fourth', '')
+
+    suffix = ''
+    if fourth == 'Perfect':
+        suffix = 'sus4'
+    elif third == 'Minor':
+        suffix = 'm'
+    # else: 大三和弦无后缀
+
+    # 第五音变化
+    if fifth == 'Diminished':
+        if 'Seventh' in degree_map and degree_map['Seventh'] == 'Minor':
+            suffix = 'm7b5'
+        else:
+            suffix = 'dim'
+    elif fifth == 'Augmented':
+        suffix = 'aug'
+
+    # 扩展后缀
+    if suffix == 'sus4':
+        return Chord(key=key_name, bass=bass_name, suffix='sus4', extensions='')
+
+    ext_parts: List[str] = []
+    # 13th 优先
+    if 'Thirteenth' in degree_map:
+        ext_parts.append('13' if degree_map['Thirteenth'] == 'Major' else 'b13')
+    # 11th
+    if 'Eleventh' in degree_map:
+        ext_parts.append('11' if degree_map['Eleventh'] == 'Perfect' else '#11')
+    # 6th 抑制 7th
+    if 'Sixth' in degree_map and degree_map['Sixth'] == 'Major' and '6' not in ext_parts:
+        ext_parts.append('6')
+    # 7th (被 6/13 抑制, 或 m7b5 已有 7 后缀)
+    if ('Seventh' in degree_map
+            and 'Thirteenth' not in degree_map
+            and 'Sixth' not in degree_map
+            and '7' not in suffix):
+        seventh = degree_map['Seventh']
+        if seventh == 'Major':
+            ext_parts.append('maj7')
+        elif seventh == 'Minor':
+            ext_parts.append('7')
+    # 9th (被 13 抑制)
+    if 'Ninth' in degree_map and 'Thirteenth' not in degree_map:
+        ninth = degree_map['Ninth']
+        if ninth == 'Major':
+            ext_parts.append('9')
+        elif ninth == 'Minor':
+            ext_parts.append('b9')
+
+    return Chord(key=key_name, bass=bass_name, suffix=suffix, extensions=''.join(ext_parts))
 
 
 # ============================================================
@@ -196,6 +310,12 @@ class GpifParser:
         self._notes_of_beat: Dict[str, List[str]] = {}                # Beat id → Note ID 列表
         self._note_by_id: Dict[str, GTPNote] = {}                     # Note id → GTPNote
 
+        # 和弦表 (v1.4.0 新增)
+        # _chord_definitions: 按 document order 索引的 Chord 列表 (index → Chord)
+        # _chord_idx_of_beat: beat_id → 和弦在 _chord_definitions 中的索引 (-1=无)
+        self._chord_definitions: List[Chord] = []
+        self._chord_idx_of_beat: Dict[str, int] = {}
+
         # 轨道附加信息
         self._track_sounds: Dict[str, _GpifSound] = {}                # Track id → Sound 信息
         self._track_is_percussion: Dict[str, bool] = {}               # Track id → 是否打击乐
@@ -287,6 +407,44 @@ class GpifParser:
             elif tag == 'Rhythms':
                 self._parse_rhythms(child)
             # 其他节点(Assets/LayoutConfiguration 等)暂不解析
+
+        # [v1.4.0] 解析和弦表 - 在所有节点遍历完成后执行
+        # 原因: 和弦定义嵌在 <Tracks>/<PartConfiguration>/<Item> 等嵌套位置,
+        #       用 .//Chord 一次性拿到所有定义, 过滤有 <KeyNote> 的真定义,
+        #       按 document order 建立索引, 供 _build_model 查表。
+        self._parse_chord_definitions(root)
+
+    def _parse_chord_definitions(self, root: ET.Element) -> None:
+        """
+        [v1.4.0] 解析 GPIF 中所有 <Chord> 定义节点, 建立按 document order 的索引表
+
+        GPIF 结构:
+          <Tracks>
+            <Track>
+              <PartConfiguration>      ← (GP7/8 实际是 PartSounding, 但 Chord 嵌入位置多变)
+                <Item>
+                  <Chord><KeyNote.../>...</Chord>  ← 真定义 (有 KeyNote)
+                </Item>
+              </PartConfiguration>
+            </Track>
+          </Tracks>
+          <Beats>
+            <Beat>
+              <Chord>0</Chord>          ← 引用 (空文本, 无 KeyNote)
+            </Beat>
+          </Beats>
+
+        重要: .//Chord 会同时拿到定义节点和引用节点, 必须用 KeyNote 子节点过滤
+
+        存储到 self._chord_definitions (List[Chord], 按 document order 索引)
+        """
+        for chord_el in root.findall('.//Chord'):
+            # 引用节点无 KeyNote, 跳过
+            if chord_el.find('KeyNote') is None:
+                continue
+            chord = _build_chord_from_xml(chord_el)
+            if chord is not None:
+                self._chord_definitions.append(chord)
 
     # ----- Score 节点解析 -----
 
@@ -925,8 +1083,16 @@ class GpifParser:
                 # 自由文字标注
                 beat.text = text
             elif tag == 'Chord':
-                # 和弦图引用(暂不解析和弦图)
-                pass
+                # [v1.4.0] 和弦图引用 - text 是 _chord_definitions 中的索引
+                # 真正的定义解析在 _parse_chord_definitions (第一遍末尾)
+                # 这里只记录索引, _build_model 阶段再 attach 到 beat.chord
+                if text:
+                    try:
+                        self._chord_idx_of_beat[beat_id] = int(text)
+                    except ValueError:
+                        self._chord_idx_of_beat[beat_id] = -1
+                else:
+                    self._chord_idx_of_beat[beat_id] = -1
             elif tag == 'GraceNotes':
                 # 装饰音(OnBeat/BeforeBeat)
                 if text in ('OnBeat', 'BeforeBeat'):
@@ -1481,13 +1647,18 @@ class GpifParser:
                 measure.is_anacrusis = mb_data['is_anacrusis']
 
                 # === 处理 Bar 的 Voices ===
+                # GPIF 中每个 Bar 最多 4 个 voice (<Voices>0 -1 -1 -1</Voices>):
+                #   - 有效 voice ID: 该 voice 有 beats, 正常处理
+                #   - 无效 voice ID (-1): 未使用槽位, 直接跳过
+                #   - 若 Bar 内所有 voice 都无效: 添加 1 个空拍占位(保持小节结构)
+                # 注意: 不要为每个 -1 voice 各加 1 个空拍, 否则会污染小节节奏
+                #   (例如 <Voices>0 -1 -1 -1</Voices> 会错误地多出 3 个空拍,
+                #    4/4 小节内 2 个 half 音 + 3 个空 quarter rest = 7 quarter beats 溢出)
                 voice_ids = bar_data.get('voice_ids', [])
+                has_active_voice = False
                 for voice_id in voice_ids:
                     if voice_id == _INVALID_ID:
-                        # 无效 Voice → 添加空拍保持结构
-                        empty_beat = GTPBeat()
-                        empty_beat.is_rest = True
-                        measure.beats.append(empty_beat)
+                        # 无效 voice 槽位 → 跳过, 不添加空拍
                         continue
 
                     beat_ids = self._voices_of_bar.get(voice_id, [])
@@ -1509,6 +1680,11 @@ class GpifParser:
                             beat.is_dotted = rhythm.dots > 0
                             beat.tuplet_numerator = rhythm.tuplet_numerator
                             beat.tuplet_denominator = rhythm.tuplet_denominator
+
+                        # [v1.4.0] 设置和弦 (按 _chord_idx_of_beat 查 _chord_definitions)
+                        chord_idx = self._chord_idx_of_beat.get(beat_id, -1)
+                        if 0 <= chord_idx < len(self._chord_definitions):
+                            beat.chord = self._chord_definitions[chord_idx]
 
                         # === 添加 Notes ===
                         note_ids = self._notes_of_beat.get(beat_id, [])
@@ -1560,6 +1736,13 @@ class GpifParser:
                             beat.is_rest = True
 
                         measure.beats.append(beat)
+                        has_active_voice = True
+
+                # 所有 voice 都无效时, 添加 1 个空拍占位(保持小节结构)
+                if not has_active_voice:
+                    empty_beat = GTPBeat()
+                    empty_beat.is_rest = True
+                    measure.beats.append(empty_beat)
 
                 track.measures.append(measure)
                 track_idx += 1

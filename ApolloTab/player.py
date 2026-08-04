@@ -650,13 +650,15 @@ class GTPPlayer:
           3. [v0.4.0] 计算并缓存反复展开序列（供 build_timeline 同步使用）
           4. 为各通道设置乐器音色（吉他/鼓组）
           5. 重新加载事件到合成器
+          6. [解耦] 节拍器事件单独通过 SynthEngine.load_metronome_events() 加载
+             不再混入主事件流。切换节拍器开关/音量时无需重建主事件。
         """
         if not self._song or not self._midi_converter or not self._synth_engine:
             return
-        
+
         # 先停止正在播放的音频
         self._synth_engine.stop()
-        
+
         # === [v0.4.0] 计算并缓存反复记号展开序列 ===
         # 使用当前音轨的小节列表计算展开索引
         # build_timeline() 会使用相同的序列来同步时间线
@@ -664,20 +666,18 @@ class GTPPlayer:
         self._expanded_measure_indices = self._midi_converter.expand_measure_indices(
             current_track.measures
         )
-        
+
         # 打印展开信息(调试用)
         if len(self._expanded_measure_indices) != len(current_track.measures):
             print(f"[GTPPlayer] 反复记号展开: {len(current_track.measures)}小节 → "
                   f"{len(self._expanded_measure_indices)}个播放位置")
-        
+
         # === 根据模式选择转换方式 ===
+        # [解耦] MidiConverter 不再接受 metronome_config，主事件流中不再混入节拍器
         if self._audio_mode == self.MODE_ALL:
             # 全轨并轨: 转换所有音轨
             self._audio_events, self._track_channels = (
-                self._midi_converter.convert_all_tracks(
-                    self._song,
-                    metronome_config=self._metronome_config
-                )
+                self._midi_converter.convert_all_tracks(self._song)
             )
 
             # [v1.1.1] 不再强制覆盖通道音色。
@@ -689,10 +689,9 @@ class GTPPlayer:
             # 仅当前轨: 只转换当前选中的音轨
             self._track_channels = []
             self._audio_events = self._midi_converter.convert(
-                self._song, track_index=self._current_track,
-                metronome_config=self._metronome_config
+                self._song, track_index=self._current_track
             )
-        
+
         # 重新加载到合成器
         if self._audio_events:
             self._synth_engine.load_events(
@@ -700,13 +699,18 @@ class GTPPlayer:
                 bpm=self._song.tempo,
                 ticks_per_beat=480  # MIDI标准分辨率
             )
-            
+
             # 打印日志
-            mode_label = ("全轨并轨" if self._audio_mode == self.MODE_ALL 
+            mode_label = ("全轨并轨" if self._audio_mode == self.MODE_ALL
                          else f"仅当前轨(#{self._current_track + 1})")
             print(f"[GTPPlayer] 事件重建[{mode_label}]: "
                   f"{len(self._audio_events)}个事件, "
                   f"{len(self._track_channels)}个通道")
+
+        # === [解耦] 独立加载节拍器事件 ===
+        # 主事件流已加载完成，节拍器事件单独生成并通过独立线程播放。
+        # 这里调用 _sync_metronome() 即可；它会判断是否启用，并按需启动节拍器线程。
+        self._sync_metronome()
     
     # ================================================================
     # [v1.1.3] 节拍器控制
@@ -724,8 +728,10 @@ class GTPPlayer:
                      用于提升木鱼音色在伴奏中的突出程度；None=保持当前值
 
         说明:
-            - 修改配置后，若已加载 GTP 歌曲且音频引擎可用，会自动重建 MIDI 事件
-            - 图片/PDF 模式下不会触发重建，由主程序在播放时调用 play_metronome_only()
+            [解耦] 节拍器事件已与主事件流分离。修改配置后：
+              - 若已加载 GTP 歌曲且音频引擎可用：调用 _sync_metronome()
+                单独重启节拍器线程，不再重建主 MIDI 事件流。
+              - 图片/PDF 模式下不自动启动，由主程序调用 play_metronome_only()
         """
         self._metronome_enabled = enabled
         self._metronome_volume = max(0.0, min(1.0, volume))
@@ -736,9 +742,97 @@ class GTPPlayer:
         self._metronome_config.volume = self._metronome_volume
         self._metronome_config.gain = self._metronome_gain
 
-        # GTP 模式下重建事件，使节拍器立即生效
+        # GTP 模式下同步节拍器状态（不重建主事件流）
         if self._song and self._synth_engine and self._audio_mode != self.MODE_OFF:
-            self.rebuild_audio_events()
+            self._sync_metronome()
+
+    def _sync_metronome(self) -> None:
+        """
+        [解耦] 同步当前节拍器配置到 SynthEngine
+
+        调用场景:
+          - rebuild_audio_events() 末尾（首次加载节拍器）
+          - set_metronome() 修改配置后
+          - play() / set_audio_mode 切换后
+
+        行为:
+          - 若 _metronome_enabled 为 False: 卸载节拍器事件
+          - 若 True: 根据当前播放位置/歌曲信息生成节拍器事件并独立加载
+
+        [对齐] 播放中开启节拍器时不卡顿:
+          - 用 bisect 计算 start_index（跳过已过去的事件索引）
+          - 把 start_offset_ms + start_index 一起传给 SynthEngine
+          - 配合 SynthEngine.load_metronome_events() 内部对 start_perf 的偏移修正，
+            首事件会在毫秒级延迟内立刻发声，不会卡 30 秒
+        """
+        if not self._synth_engine:
+            return
+
+        if not self._metronome_enabled:
+            self._synth_engine.unload_metronome_events()
+            return
+
+        # GTP 模式: 根据当前音轨的展开序列生成节拍器事件
+        if self._song and self._song.tracks:
+            import bisect
+            ticks_per_beat = self._midi_converter.TICKS_PER_BEAT
+            track_idx = min(self._current_track, len(self._song.tracks) - 1)
+            # 复用 _expanded_measure_indices (在 rebuild_audio_events 中已缓存)
+            expanded = getattr(self, '_expanded_measure_indices', None)
+            if expanded is None:
+                track = self._song.tracks[track_idx]
+                expanded = self._midi_converter.expand_measure_indices(track.measures)
+            events = MetronomeGenerator.generate_for_song(
+                song=self._song,
+                track_index=track_idx,
+                config=self._metronome_config,
+                expanded_indices=expanded,
+                ticks_per_beat=ticks_per_beat
+            )
+            # 计算总 tick 数(按展开序列逐小节求和)
+            total_ticks = 0
+            for orig_idx in expanded:
+                m = self._song.tracks[track_idx].measures[orig_idx]
+                num, den = getattr(m, 'time_signature', (4, 4))
+                if den <= 0:
+                    den = 4
+                total_ticks += int(num * ticks_per_beat * 4.0 / den)
+
+            # [对齐] 播放中开启: 用 bisect 找到第一个 time > start_offset_ticks 的事件
+            # 跳过这些已过去的事件，避免节拍器线程遍历大量旧事件导致卡顿
+            start_offset_ms = 0.0
+            start_index = 0
+            if self._synth_engine.is_playing:
+                cur_ms = self._synth_engine.current_time_ms
+                bpm = self._song.tempo or 120
+                if bpm <= 0:
+                    bpm = 120
+                # 将"主播放位置(毫秒)"换算成"tick 偏移"
+                start_offset_ticks = (
+                    cur_ms / 1000.0 * bpm / 60.0 * ticks_per_beat
+                )
+                # 还原为毫秒(传给 SynthEngine)
+                start_offset_ms = (
+                    start_offset_ticks * 60000.0 / (bpm * ticks_per_beat)
+                )
+                # bisect_right 找第一个 time > start_offset_ticks 的事件
+                # 这样既能跳过该 tick 之前的 note_on，也能跳过对应 note_off
+                # （note_off 在 note_on 之后几个 tick，但仍在同一 click 内）
+                if events:
+                    times = [e.time for e in events]
+                    start_index = bisect.bisect_right(times, start_offset_ticks)
+
+            self._synth_engine.load_metronome_events(
+                events=events,
+                bpm=self._song.tempo or 120,
+                ticks_per_beat=ticks_per_beat,
+                total_ticks=total_ticks,
+                start_offset_ms=start_offset_ms,
+                start_index=start_index
+            )
+        else:
+            # 非 GTP 模式: 保持现有行为，由 play_metronome_only() 启动
+            self._synth_engine.unload_metronome_events()
 
     def play_metronome_only(self, bpm: int = 120, numerator: int = 4,
                             denominator: int = 4,
@@ -753,8 +847,9 @@ class GTPPlayer:
             duration_minutes: 生成事件的总时长（分钟），默认 10 分钟
 
         说明:
-            - 调用前需确保已调用 init_audio() 初始化音频引擎
-            - 停止播放由 stop() 统一处理
+            [解耦] 此方法直接调用 SynthEngine.load_metronome_events() 启动
+                  独立节拍器线程；不再占用主播放线程的事件队列。
+            停止播放由 stop() 统一处理。
         """
         if not self._synth_engine:
             return
@@ -779,10 +874,15 @@ class GTPPlayer:
             config=self._metronome_config
         )
 
-        if events:
-            self._synth_engine.load_events(events, bpm=bpm,
-                                           ticks_per_beat=ticks_per_beat)
-            self._synth_engine.play()
+        # [解耦] 独立线程播放节拍器（不通过主 _play_loop 调度）
+        self._synth_engine.load_metronome_events(
+            events=events,
+            bpm=bpm,
+            ticks_per_beat=ticks_per_beat,
+            total_ticks=total_ticks,
+            start_offset_ms=0.0,
+            start_index=0
+        )
 
     # ================================================================
     # 播放控制
@@ -867,15 +967,13 @@ class GTPPlayer:
         self._gain = linear_gain
         if self._synth_engine and self._synth_engine.is_initialized:
             try:
-                # 直接修改synth_engine的gain属性
+                # [封装] 通过公共 API 设置 gain 与主音量
+                # 不再直接访问 self._synth_engine._synth
                 self._synth_engine.gain = linear_gain
-                # 通过FluidSynth API设置主音量
-                if hasattr(self._synth_engine, '_synth') and self._synth_engine._synth:
-                    # FluidSynth的gain属性在初始化时设置，运行时修改需要重新创建
-                    # 这里我们通过降低每个通道的音量来模拟总音量控制
-                    for ch in range(16):
-                        master_vol = int(linear_gain * 127)
-                        self._synth_engine._synth.cc(ch, 7, min(127, max(0, master_vol)))
+                # FluidSynth 的 gain 在初始化后不可热修改，
+                # 用公共 set_master_volume() 对全部 16 通道发送 CC#7 模拟
+                master_vol = int(linear_gain * 127)
+                self._synth_engine.set_master_volume(master_vol)
             except Exception as e:
                 print(f"[GTPPlayer] 设置主音量失败: {e}")
     
@@ -901,8 +999,6 @@ class GTPPlayer:
           - 单轨模式下只有当前轨一个通道，效果等同于Master音量
           - 如果音频引擎未初始化，仅保存设置值(待后续init_audio时应用)
         """
-        import math
-        
         # 将dB值转换为MIDI音量值(0-127)
         # 映射规则: -60dB→0, 0dB→100(默认), +12dB→127
         if db_value <= -60.0:
@@ -924,19 +1020,19 @@ class GTPPlayer:
         # 尝试实时应用到音频引擎
         if self._synth_engine and self._synth_engine.is_initialized:
             try:
-                # 获取该音轨对应的MIDI通道
+                # [封装] 通过公共 set_channel_volume 发送 CC#7
+                # 不再直接访问 self._synth_engine._synth
                 if self._audio_mode == self.MODE_ALL and self._track_channels:
                     # 全轨模式: 每个音轨有独立的MIDI通道
                     if track_index < len(self._track_channels):
                         channel = self._track_channels[track_index]
-                        # 发送MIDI CC#7 (Volume)消息
-                        self._synth_engine._synth.cc(channel, 7, midi_volume)
-                        print(f"[GTPPlayer] Track {track_index} (CH{channel}): {midi_volume}/127")
+                        if self._synth_engine.set_channel_volume(channel, midi_volume):
+                            print(f"[GTPPlayer] Track {track_index} (CH{channel}): {midi_volume}/127")
                 elif self._audio_mode == self.MODE_CURRENT:
                     # 单轨模式: 只有一个活动通道(通常是channel 0)
                     # 所有音轨滑块都控制同一个通道
-                    self._synth_engine._synth.cc(0, 7, midi_volume)
-                    print(f"[GTPPlayer] Track {track_index} (CH0): {midi_volume}/127")
+                    if self._synth_engine.set_channel_volume(0, midi_volume):
+                        print(f"[GTPPlayer] Track {track_index} (CH0): {midi_volume}/127")
             except Exception as e:
                 print(f"[GTPPlayer] 设置音轨{track_index}音量失败: {e}")
     
@@ -1125,27 +1221,32 @@ class GTPPlayer:
     
     @property
     def is_loop_enabled(self) -> bool:
-        """是否已启用A/B区域循环"""
+        """
+        是否已启用A/B区域循环
+
+        [封装] 通过 SynthEngine.is_loop_enabled 公共属性查询，
+        不再直接访问 self._synth_engine._lock / self._synth_engine._loop_enabled
+        """
         if self._synth_engine:
-            with self._synth_engine._lock:
-                return self._synth_engine._loop_enabled
+            return self._synth_engine.is_loop_enabled
         return False
-    
+
     @property
     def loop_time_range(self) -> tuple:
         """
         获取当前A/B循环的时间范围(毫秒)
-        
+
         返回:
-            (loop_start_ms, loop_end_ms) 元组，若循环未启用则返回 (0, 0)
-            
+            (loop_start_ms, loop_end_ms) 元组，若循环未启用则返回 (0.0, 0.0)
+
         用途: UI层判断点击的小节是否在循环区间内
+
+        [封装] 通过 SynthEngine.loop_time_range 公共属性查询，
+        不再直接访问 self._synth_engine._lock / self._synth_engine._loop_*
         """
         if self._synth_engine:
-            with self._synth_engine._lock:
-                if self._synth_engine._loop_enabled:
-                    return (self._synth_engine._loop_start_ms, self._synth_engine._loop_end_ms)
-        return (0, 0)
+            return self._synth_engine.loop_time_range
+        return (0.0, 0.0)
     
     def find_measure_at_scroll_pos(self, scroll_y: float) -> Optional[dict]:
         """
@@ -1388,6 +1489,11 @@ class GTPPlayer:
                         continue
                     
                     # 遍历该小节的所有拍
+                    # [v1.3.2修复] 记录小节起始 tick，用于末尾对齐 measure_ticks
+                    measure_start_ticks = current_time_ticks
+                    # [v1.3.3修复] 记录最后一拍的 scroll_y 和结束 tick，用于哨兵 entry
+                    last_beat_scroll_y = page_base_y
+                    last_beat_end_ticks = current_time_ticks
                     for beat_idx, b_layout in enumerate(beats_in_measure):
                         # === 计算 scroll_y: 每个拍有独立递增的Y位置 ===
                         sys_beats_count = sum(len(m.beats) for m in system.measures)
@@ -1402,6 +1508,7 @@ class GTPPlayer:
                             page_base_y
                             + (system.y_tab_top + rel_pos * sys_h_render) * page_scale_ratio
                         )
+                        last_beat_scroll_y = scroll_y  # 记住最后一拍位置
                         
                         # 构建时间线索引条目
                         entry = {
@@ -1429,15 +1536,61 @@ class GTPPlayer:
                         beat_duration_ticks = int(ticks_per_beat * beat_duration_value)
                         current_time_ticks += max(beat_duration_ticks, 1)
                         current_time_ms = current_time_ticks * ms_per_tick
+                        last_beat_end_ticks = current_time_ticks
+                    
+                    # [v1.3.3修复] 在"最后一拍结束时刻"添加哨兵 entry
+                    # 原理: timeline 中只有"拍起始"entry, 最后一拍 entry 的 time 是该拍
+                    #       **起始**时刻。线性插值会从最后一拍起始直接插值到下一小节第一拍,
+                    #       导致最后一音还在响时播放条就已经向下一小节移动了。
+                    # 修复: 在"最后一拍结束时刻"添加哨兵 entry (scroll_y = 最后一拍位置)。
+                    #       这样插值分成两段:
+                    #       1. 最后一拍起始 → 哨兵: scroll_y 不变 (最后一音持续期间停留)
+                    #       2. 哨兵 → 下一小节第一拍: 平滑滚动 (空白期自然过渡)
+                    # 哨兵 time 用 last_beat_end_ticks (各拍累加结束, v1.3.2 对齐前的值),
+                    #       略早于下一小节第一拍 time, 避免 bisect_right 跳过哨兵。
+                    if beats_in_measure:
+                        sentinel_time_ms = last_beat_end_ticks * ms_per_tick
+                        measure_end_time = (measure_start_ticks + measure_ticks) * ms_per_tick
+                        # 无截断时两者相等, 需要让哨兵 time 略早以避免 bisect_right 跳过
+                        if sentinel_time_ms >= measure_end_time:
+                            sentinel_time_ms = measure_end_time - 0.01
+                        measure_end_entry = {
+                            'time_ms': sentinel_time_ms,
+                            'scroll_y': last_beat_scroll_y,
+                            'page_idx': page_idx,
+                            'sys_idx': sys_idx,
+                            'meas_idx': meas_idx,
+                            'global_meas_idx': global_meas_idx,
+                            'beat_idx': len(beats_in_measure),
+                            'x_center': 0, 'x_start': 0, 'x_end': 0,
+                            'y_top': system.y_tab_top,
+                            'y_bottom': system.y_tab_bottom,
+                            '_is_measure_end': True,
+                        }
+                        self._playhead_timeline.append(measure_end_entry)
+                    
+                    # [v1.3.2修复] 将 current_time_ticks 对齐到拍号计算的 measure_ticks
+                    # 原理: 各拍 beat_duration_ticks 之和可能因 int() 浮点截断（如三连音
+                    #       int(480*0.3333)=159）而小于 measure_ticks，导致下一小节提前开始
+                    #       （即"最后一音时值还没走完就到下小节"）。
+                    #       对齐后确保下一小节第一拍 time 与 MIDI 事件中该小节起始 tick 一致。
+                    # measure_ticks 已在第1455行由拍号计算得到
+                    current_time_ticks = measure_start_ticks + measure_ticks
+                    current_time_ms = current_time_ticks * ms_per_tick
                     
                     # [v2.0.6修复] 每处理完一个小节，全局ID递增(确保跨系统/页唯一)
                     global_meas_idx += 1
         
-        # === 后处理: 确保scroll_y严格单调递增 + 可选哨兵 ===
+        # === 后处理: 确保scroll_y严格单调递增 ===
         if self._playhead_timeline:
             # 强制单调递增(防止布局数据异常导致回退)
+            # [v1.3.3修复] 跳过哨兵 entry (_is_measure_end=True),
+            # 它的 scroll_y 与最后一拍相同, 不应被强制递增
             prev_y = -1.0
             for entry in self._playhead_timeline:
+                if entry.get('_is_measure_end', False):
+                    prev_y = entry['scroll_y']
+                    continue
                 if entry['scroll_y'] <= prev_y:
                     entry['scroll_y'] = prev_y + 0.5  # 最小增量保证递增
                 prev_y = entry['scroll_y']

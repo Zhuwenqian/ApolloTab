@@ -59,7 +59,7 @@ from .parser import (
     parse_score,                           # 智能调度函数(v0.4.0新增)
     GP3_5_EXTENSIONS, GP7_8_EXTENSIONS, ALL_SUPPORTED_EXTENSIONS,
 )
-from .models import GTPNote, GTPBeat, GTPMeasure, GTPTrack, GTPSong
+from .models import GTPNote, GTPBeat, GTPMeasure, GTPTrack, GTPSong, Chord
 from .renderer import TabRenderer, render_gtp, TabLayoutEngine
 from .audio import MidiConverter, MidiEvent, SynthEngine
 from .audio import MetronomeConfig, MetronomeGenerator

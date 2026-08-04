@@ -1,3 +1,5 @@
 venv/
 token
 uploadcmd.txt
+.DS_Store
+*.pyc
