@@ -53,7 +53,7 @@ import platform
 import threading
 import time
 from collections.abc import Callable
-from typing import Optional
+from typing import Any, Optional
 
 
 class SynthEngine:
@@ -105,7 +105,12 @@ class SynthEngine:
         "default-GM.sf2",  # 默认 GM 音色库
     ]
 
-    def __init__(self, sample_rate: int = None, buffer_size: int = None, gain: float = None):
+    def __init__(
+        self,
+        sample_rate: int | None = None,
+        buffer_size: int | None = None,
+        gain: float | None = None,
+    ):
         """
         初始化合成引擎
 
@@ -119,8 +124,9 @@ class SynthEngine:
         self.gain = gain or self.DEFAULT_GAIN
 
         # === 内部状态 ===
-        self._synth = None  # FluidSynth 合成器实例
-        self._audio_driver = None  # 音频驱动实例
+        # fluidsynth 无 py.typed stub，_synth/_audio_driver 用 Any
+        self._synth: Any = None  # FluidSynth 合成器实例
+        self._audio_driver: Any = None  # 音频驱动实例
         self._sfid = -1  # 当前加载的SoundFont ID
         self._soundfont_path = ""  # 当前SoundFont文件路径
 
@@ -132,7 +138,7 @@ class SynthEngine:
         # === 播放控制 ===
         self._is_playing: bool = False  # 是否正在播放
         self._is_paused: bool = False  # 是否暂停
-        self._play_thread: threading.Thread = None  # 播放线程
+        self._play_thread: threading.Thread | None = None  # 播放线程
         self._stop_flag: bool = False  # 停止信号
         self._pause_event = threading.Event()  # 暂停事件(用于暂停恢复同步)
         self._pause_event.set()  # 初始为非暂停状态(set=不阻塞)
@@ -470,7 +476,7 @@ class SynthEngine:
         # === 未找到，返回空字符串 ===
         return ""
 
-    def load_soundfont(self, path: str = None) -> bool:
+    def load_soundfont(self, path: str | None = None) -> bool:
         """
         加载 SoundFont 音色文件
 
@@ -1512,7 +1518,7 @@ class SynthEngine:
                 # 接近目标时间，busy-wait 提高精度
                 self._pause_event.wait(timeout=0.001)  # 1ms 短暂 sleep 让出CPU
 
-    def _send_event(self, event) -> None:
+    def _send_event(self, event: Any) -> None:
         """
         发送单个 MIDI 事件到 FluidSynth 合成器
 
@@ -1589,7 +1595,7 @@ class SynthEngine:
                 self._synth = None
                 self._audio_driver = None
 
-    def __del__(self):
+    def __del__(self) -> None:
         """析构函数：确保资源释放"""
         with contextlib.suppress(Exception):
             self.shutdown()

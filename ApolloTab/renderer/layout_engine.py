@@ -136,7 +136,10 @@ class TabLayoutEngine:
         self.cfg = config or RenderConfig()
 
     def layout(
-        self, track: GTPTrack, page_width: int = None, page_height: int = None
+        self,
+        track: GTPTrack,
+        page_width: int | None = None,
+        page_height: int | None = None,
     ) -> list[PageLayout]:
         """
         对整条轨道进行完整布局计算

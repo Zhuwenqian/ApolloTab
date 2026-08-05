@@ -1,0 +1,147 @@
+﻿ApolloTab\parser\gpif_parser.py:84: error: Function is missing a return type annotation  [no-untyped-def]
+ApolloTab\parser\gpif_parser.py:84: note: Use "-> None" if function does not return a value
+ApolloTab\parser\gpif_parser.py:85: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:86: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:87: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:88: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:89: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:95: error: Function is missing a return type annotation  [no-untyped-def]
+ApolloTab\parser\gpif_parser.py:95: note: Use "-> None" if function does not return a value
+ApolloTab\parser\gpif_parser.py:96: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:97: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:293: error: Function is missing a return type annotation  [no-untyped-def]
+ApolloTab\parser\gpif_parser.py:293: note: Use "-> None" if function does not return a value
+ApolloTab\parser\gpif_parser.py:296: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:299: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:300: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:301: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:302: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:303: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:304: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:305: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:306: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:307: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:308: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:309: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:310: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:311: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:316: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:317: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:320: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:321: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:322: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:323: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:324: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+ApolloTab\parser\gpif_parser.py:347: error: Accessing "__init__" on an instance is unsound, since instance.__init__ could be from an incompatible subclass  [misc]
+ApolloTab\parser\gpif_parser.py:387: error: Item "None" of "GTPSong | None" has no attribute "gp_version"  [union-attr]
+ApolloTab\parser\gpif_parser.py:473: error: Item "None" of "GTPSong | None" has no attribute "title"  [union-attr]
+ApolloTab\parser\gpif_parser.py:475: error: Item "None" of "GTPSong | None" has no attribute "subtitle"  [union-attr]
+ApolloTab\parser\gpif_parser.py:477: error: Item "None" of "GTPSong | None" has no attribute "artist"  [union-attr]
+ApolloTab\parser\gpif_parser.py:479: error: Item "None" of "GTPSong | None" has no attribute "album"  [union-attr]
+ApolloTab\parser\gpif_parser.py:481: error: Item "None" of "GTPSong | None" has no attribute "words"  [union-attr]
+ApolloTab\parser\gpif_parser.py:483: error: Item "None" of "GTPSong | None" has no attribute "music"  [union-attr]
+ApolloTab\parser\gpif_parser.py:487: error: Item "None" of "GTPSong | None" has no attribute "words"  [union-attr]
+ApolloTab\parser\gpif_parser.py:488: error: Item "None" of "GTPSong | None" has no attribute "words"  [union-attr]
+ApolloTab\parser\gpif_parser.py:489: error: Item "None" of "GTPSong | None" has no attribute "music"  [union-attr]
+ApolloTab\parser\gpif_parser.py:490: error: Item "None" of "GTPSong | None" has no attribute "music"  [union-attr]
+ApolloTab\parser\gpif_parser.py:492: error: Item "None" of "GTPSong | None" has no attribute "copyright"  [union-attr]
+ApolloTab\parser\gpif_parser.py:494: error: Item "None" of "GTPSong | None" has no attribute "tabber"  [union-attr]
+ApolloTab\parser\gpif_parser.py:496: error: Item "None" of "GTPSong | None" has no attribute "instructions"  [union-attr]
+ApolloTab\parser\gpif_parser.py:498: error: Item "None" of "GTPSong | None" has no attribute "notices"  [union-attr]
+ApolloTab\parser\gpif_parser.py:502: error: Item "None" of "GTPSong | None" has no attribute "default_systems_layout"  [union-attr]
+ApolloTab\parser\gpif_parser.py:504: error: Item "None" of "GTPSong | None" has no attribute "default_systems_layout"  [union-attr]
+ApolloTab\parser\gpif_parser.py:930: error: "object" has no attribute "append"  [attr-defined]
+ApolloTab\parser\gpif_parser.py:952: error: Need type annotation for "bar_data"  [var-annotated]
+ApolloTab\parser\gpif_parser.py:1313: error: "GTPNote" has no attribute "vibrato"  [attr-defined]
+ApolloTab\parser\gpif_parser.py:1316: error: "GTPNote" has no attribute "vibrato"  [attr-defined]
+ApolloTab\parser\gpif_parser.py:1369: error: Argument "bend_type" to "BendData" has incompatible type "BendType"; expected "str"  [arg-type]
+ApolloTab\parser\gpif_parser.py:1541: error: Item "None" of "GTPSong | None" has no attribute "tempo"  [union-attr]
+ApolloTab\parser\gpif_parser.py:1542: error: Item "None" of "GTPSong | None" has no attribute "tempo_name"  [union-attr]
+ApolloTab\parser\gpif_parser.py:1550: error: Item "None" of "GTPSong | None" has no attribute "tracks"  [union-attr]
+ApolloTab\parser\gpif_parser.py:1562: error: Item "None" of "GTPSong | None" has no attribute "tracks"  [union-attr]
+ApolloTab\parser\gpif_parser.py:1575: error: Item "None" of "GTPSong | None" has no attribute "tracks"  [union-attr]
+ApolloTab\parser\gpif_parser.py:1700: error: Item "None" of "GTPSong | None" has no attribute "tracks"  [union-attr]
+ApolloTab\parser\gpif_parser.py:1705: error: Item "None" of "GTPSong | None" has no attribute "tracks"  [union-attr]
+ApolloTab\audio\midi_converter.py:994: error: Argument 1 to "get" of "dict" has incompatible type "str | None"; expected "str"  [arg-type]
+ApolloTab\renderer\tab_renderer.py:112: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:215: error: Incompatible default for parameter "page_width" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\renderer\tab_renderer.py:215: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\renderer\tab_renderer.py:215: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\renderer\tab_renderer.py:215: error: Incompatible default for parameter "page_height" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\renderer\tab_renderer.py:256: error: Incompatible default for parameter "page_width" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\renderer\tab_renderer.py:256: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\renderer\tab_renderer.py:256: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\renderer\tab_renderer.py:256: error: Incompatible default for parameter "page_height" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\renderer\tab_renderer.py:419: error: No overload variant of "drawText" of "QPainter" matches argument types "QRect", "Alignment", "str"  [call-overload]
+ApolloTab\renderer\tab_renderer.py:419: note: Possible overload variants:
+ApolloTab\renderer\tab_renderer.py:419: note:     def drawText(self, p: QPointF | QPoint, s: str) -> None
+ApolloTab\renderer\tab_renderer.py:419: note:     def drawText(self, rectangle: QRectF, flags: int, text: str) -> QRectF
+ApolloTab\renderer\tab_renderer.py:419: note:     def drawText(self, rectangle: QRect, flags: int, text: str) -> QRect
+ApolloTab\renderer\tab_renderer.py:419: note:     def drawText(self, rectangle: QRectF, text: str, option: QTextOption = ...) -> None
+ApolloTab\renderer\tab_renderer.py:419: note:     def drawText(self, x: int, y: int, width: int, height: int, flags: int, text: str) -> QRect
+ApolloTab\renderer\tab_renderer.py:419: note:     def drawText(self, x: int, y: int, s: str) -> None
+ApolloTab\renderer\tab_renderer.py:510: error: Argument 1 to "get" of "dict" has incompatible type "Any | int | None"; expected "int"  [arg-type]
+ApolloTab\renderer\tab_renderer.py:560: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:669: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:804: error: Incompatible default for parameter "m_layout" (default has type "None", parameter has type "MeasureLayout")  [assignment]
+ApolloTab\renderer\tab_renderer.py:804: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\renderer\tab_renderer.py:804: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\renderer\tab_renderer.py:865: error: "GTPNote" has no attribute "_parent_beat"  [attr-defined]
+ApolloTab\renderer\tab_renderer.py:871: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:909: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:910: error: Incompatible default for parameter "m_layout" (default has type "None", parameter has type "MeasureLayout")  [assignment]
+ApolloTab\renderer\tab_renderer.py:910: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\renderer\tab_renderer.py:910: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\renderer\tab_renderer.py:986: error: No overload variant of "drawPolygon" of "QPainter" matches argument type "list[QPoint]"  [call-overload]
+ApolloTab\renderer\tab_renderer.py:986: note: Possible overload variants:
+ApolloTab\renderer\tab_renderer.py:986: note:     def drawPolygon(self, point: QPointF | QPoint, *a1: Any) -> None
+ApolloTab\renderer\tab_renderer.py:986: note:     def drawPolygon(self, points: QPolygonF, fillRule: FillRule = ...) -> None
+ApolloTab\renderer\tab_renderer.py:986: note:     def drawPolygon(self, points: QPolygon, fillRule: FillRule = ...) -> None
+ApolloTab\renderer\tab_renderer.py:988: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1067: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1150: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1331: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1415: error: Need type annotation for "tech_beats"  [var-annotated]
+ApolloTab\renderer\tab_renderer.py:1509: error: Incompatible default for parameter "base_y" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\renderer\tab_renderer.py:1509: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\renderer\tab_renderer.py:1509: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\renderer\tab_renderer.py:1600: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1647: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1707: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\renderer\tab_renderer.py:1857: error: Item "None" of "Chord | None" has no attribute "name"  [union-attr]
+ApolloTab\player.py:275: error: Incompatible default for parameter "track_index" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\player.py:275: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:275: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\player.py:335: error: Incompatible default for parameter "track_index" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\player.py:335: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:335: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\player.py:335: error: Incompatible default for parameter "config" (default has type "None", parameter has type "RenderConfig")  [assignment]
+ApolloTab\player.py:371: error: Incompatible default for parameter "song" (default has type "None", parameter has type "GTPSong")  [assignment]
+ApolloTab\player.py:371: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:371: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\player.py:371: error: Incompatible default for parameter "track_index" (default has type "None", parameter has type "int")  [assignment]
+ApolloTab\player.py:371: error: Incompatible default for parameter "config" (default has type "None", parameter has type "RenderConfig")  [assignment]
+ApolloTab\player.py:411: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+ApolloTab\player.py:501: error: Incompatible default for parameter "note_callback" (default has type "None", parameter has type "Callable[..., Any]")  [assignment]
+ApolloTab\player.py:501: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:501: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\player.py:555: error: Function "note_callback" could always be true in boolean context  [truthy-function]
+ApolloTab\player.py:724: error: Incompatible default for parameter "gain" (default has type "None", parameter has type "float")  [assignment]
+ApolloTab\player.py:724: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:724: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\player.py:1088: error: Need type annotation for "measure_entries" (hint: "measure_entries: dict[<type>, <type>] = ...")  [var-annotated]
+ApolloTab\player.py:1672: error: Need type annotation for "num_to_global" (hint: "num_to_global: dict[<type>, <type>] = ...")  [var-annotated]
+ApolloTab\player.py:1685: error: Need type annotation for "groups" (hint: "groups: dict[<type>, <type>] = ...")  [var-annotated]
+ApolloTab\player.py:1756: error: Incompatible default for parameter "time_ms" (default has type "None", parameter has type "float")  [assignment]
+ApolloTab\player.py:1756: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:1756: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+ApolloTab\player.py:1874: error: Returning Any from function declared to return "float"  [no-any-return]
+ApolloTab\player.py:1917: error: Returning Any from function declared to return "float"  [no-any-return]
+ApolloTab\player.py:1919: error: Returning Any from function declared to return "float"  [no-any-return]
+ApolloTab\player.py:1926: error: Returning Any from function declared to return "float"  [no-any-return]
+ApolloTab\player.py:1931: error: Returning Any from function declared to return "float"  [no-any-return]
+ApolloTab\player.py:1983: error: Function is missing a type annotation  [no-untyped-def]
+ApolloTab\player.py:2013: error: Incompatible default for parameter "config" (default has type "None", parameter has type "RenderConfig")  [assignment]
+ApolloTab\player.py:2013: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+ApolloTab\player.py:2013: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+pyproject.toml: note: unused section(s): module = ['guitarpro.*', 'numpy', 'numpy.*']

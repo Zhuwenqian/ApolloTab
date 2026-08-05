@@ -71,6 +71,7 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.6",
     "mypy>=1.0",
+    "PyQt5-stubs>=5.15.6.0",  # PyQt5 类型 stub (v1.5.0: mypy 类型检查 Qt 函数)
     "build>=0.10",
     "twine>=4.0",
 ]
@@ -139,9 +140,26 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 
-# mypy类型检查配置
+# ============================================================
+# mypy 类型检查配置 (v1.5.0: 补全 + 接入 CI)
+# 注: mypy 目录模式 (mypy ApolloTab) 不全量检查子模块 (mypy 设计:
+#     仅命令行显式 source 全量检查, 被导入模块只报"影响 source"的错误)。
+#     故 files 指定 __init__.py 为入口, 经 follow_imports 全量覆盖核心库导入链。
+#     未来新增子模块需在 __init__.py 导出, 否则不被检查。
+# ============================================================
 [tool.mypy]
 python_version = "3.11"
+files = ["ApolloTab/__init__.py"]
+exclude = ['ApolloTab/tests/', 'ApolloTab/examples/', 'venv/', 'dist/', 'build/']
+show_error_codes = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+no_implicit_optional = true   # mypy 2.x 默认已开, 显式声明
+
+# 无 py.typed 的第三方依赖: 忽略缺失 stub
+# - guitarpro (pyguitarpro) / fluidsynth (pyfluidsynth): 无官方 stub
+# - numpy: 新版自带 stub 用 Py3.12 type 语句, 在 3.11 target 报 syntax 错
+[[tool.mypy.overrides]]
+module = ["guitarpro", "guitarpro.*", "fluidsynth", "numpy", "numpy.*"]
+ignore_missing_imports = true

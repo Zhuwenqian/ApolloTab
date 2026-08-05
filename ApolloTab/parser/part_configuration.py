@@ -36,6 +36,8 @@
 import struct
 from dataclasses import dataclass, field
 
+from ..models.song import GTPSong
+
 
 @dataclass
 class PartConfigurationTrackViewGroup:
@@ -158,7 +160,7 @@ class PartConfiguration:
         if offset + 4 <= len(data):
             self.active_view_index = struct.unpack_from('>i', data, offset)[0]
 
-    def apply(self, song) -> None:
+    def apply(self, song: GTPSong) -> None:
         """
         将配置应用到 GTPSong 对象的音轨上
 

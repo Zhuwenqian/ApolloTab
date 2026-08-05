@@ -68,7 +68,7 @@ class GP7Parser:
       5. 应用 BinaryStylesheet(样式表)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化解析器"""
         self._gp_version: str = ""  # 文件版本("7.0"/"8.0")
 

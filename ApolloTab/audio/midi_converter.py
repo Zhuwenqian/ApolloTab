@@ -54,6 +54,13 @@ GP7/GP8 兼容性 (v0.4.1-v1.0.1):
 """
 
 from dataclasses import dataclass
+from typing import Any
+
+from ..models.beat import GTPBeat
+from ..models.measure import GTPMeasure
+from ..models.note import BendData, GTPNote
+from ..models.song import GTPSong
+from ..models.track import GTPTrack
 
 # 导入技巧枚举（用于力度计算和断奏判断）
 from ..utils.constants import TechniqueType
@@ -152,7 +159,7 @@ class MidiConverter:
     ACCENT_NORMAL = 1  # 普通重音 (Normal Accent) → 力度 +15
     ACCENT_HEAVY = 2  # 强重音 (Heavy Accent) → 力度 +25
 
-    def __init__(self, ticks_per_beat: int = None):
+    def __init__(self, ticks_per_beat: int | None = None):
         """
         初始化转换器
 
@@ -229,7 +236,7 @@ class MidiConverter:
 
         return result
 
-    def convert(self, song, track_index: int = 0) -> list[MidiEvent]:
+    def convert(self, song: GTPSong, track_index: int = 0) -> list[MidiEvent]:
         """
         将 GTPSong 的指定音轨转换为 MIDI 事件序列
 
@@ -325,7 +332,7 @@ class MidiConverter:
         return events
 
     @staticmethod
-    def is_drum_track(track) -> bool:
+    def is_drum_track(track: GTPTrack) -> bool:
         """
         检测一个音轨是否为鼓轨(打击乐轨道)
 
@@ -378,7 +385,7 @@ class MidiConverter:
 
         return False
 
-    def _create_program_events(self, track, channel: int) -> list[MidiEvent]:
+    def _create_program_events(self, track: GTPTrack, channel: int) -> list[MidiEvent]:
         """
         创建音轨开头的音色设置事件(Bank Select + Program Change)
 
@@ -483,7 +490,7 @@ class MidiConverter:
 
         return events
 
-    def convert_all_tracks(self, song) -> tuple[list[MidiEvent], list[int]]:
+    def convert_all_tracks(self, song: GTPSong) -> tuple[list[MidiEvent], list[int]]:
         """
         转换歌曲所有音轨为合并的 MIDI 事件序列（并轨模式）
 
@@ -586,7 +593,7 @@ class MidiConverter:
 
         return all_events, track_channels
 
-    def get_all_tracks_duration_ms(self, song) -> float:
+    def get_all_tracks_duration_ms(self, song: GTPSong) -> float:
         """
         获取所有音轨中最长的总时长(毫秒)
 
@@ -610,7 +617,11 @@ class MidiConverter:
         return max_duration
 
     def _convert_measure(
-        self, measure, start_tick: int, channel: int, percussion_articulations: list = None
+        self,
+        measure: GTPMeasure,
+        start_tick: int,
+        channel: int,
+        percussion_articulations: list[Any] | None = None,
     ) -> list[MidiEvent]:
         """
         转换单个小节的所有音符为 MIDI 事件
@@ -749,7 +760,7 @@ class MidiConverter:
 
         return events
 
-    def _bend_to_midi_pitch(self, bend_data) -> int:
+    def _bend_to_midi_pitch(self, bend_data: BendData) -> int:
         """
         将GTP推弦数据(BendData)转换为MIDI Pitch Bend值
 
@@ -791,12 +802,12 @@ class MidiConverter:
 
     def _generate_bend_events(
         self,
-        events: list,
+        events: list[MidiEvent],
         beat_tick: int,
         actual_duration: int,
         beat_ticks: int,
         channel: int,
-        bend_data,
+        bend_data: BendData,
     ) -> None:
         """
         生成推弦的渐变Pitch Bend事件序列
@@ -913,7 +924,7 @@ class MidiConverter:
         result = midi_center + midi_offset
         return max(0, min(result, 16383))
 
-    def _beat_duration_to_ticks(self, beat) -> int:
+    def _beat_duration_to_ticks(self, beat: GTPBeat) -> int:
         """
         将拍的时值转换为 tick 数
 
@@ -942,7 +953,7 @@ class MidiConverter:
         ticks = int(self.ticks_per_beat * beat.duration_value)
         return max(ticks, 1)  # 最少1 tick，防止除零
 
-    def _measure_to_ticks(self, measure) -> int:
+    def _measure_to_ticks(self, measure: GTPMeasure) -> int:
         """
         计算一个小节的总 tick 时长
 
@@ -952,7 +963,7 @@ class MidiConverter:
         numerator, denominator = measure.time_signature
         return int(numerator * self.ticks_per_beat * 4.0 / denominator)
 
-    def _calculate_velocity(self, note, beat=None) -> int:
+    def _calculate_velocity(self, note: GTPNote, beat: GTPBeat | None = None) -> int:
         """
         根据音符属性计算实际演奏力度
 
@@ -980,7 +991,7 @@ class MidiConverter:
         # === 步骤1: 确定基础力度 ===
         # [v0.4.1] GP7/GP8: 优先使用 beat.dynamics 力度标记
         if beat is not None and getattr(beat, 'dynamics', None):
-            base_vel = self.DYNAMICS_TO_VELOCITY.get(beat.dynamics, note.velocity)
+            base_vel = self.DYNAMICS_TO_VELOCITY.get(beat.dynamics or "", note.velocity)
         else:
             # GP3-5 路径或 GP7/GP8 无 dynamics 标记时使用音符自带力度
             base_vel = note.velocity
@@ -1001,7 +1012,7 @@ class MidiConverter:
             base_vel = min(base_vel + 25, 127)
 
         # 确保在合法范围内
-        return max(0, min(127, base_vel))
+        return max(0, min(127, int(base_vel)))
 
     def tick_to_ms(self, tick: int, bpm: int) -> float:
         """
@@ -1020,7 +1031,7 @@ class MidiConverter:
             bpm = 120
         return tick * 60000.0 / (bpm * self.ticks_per_beat)
 
-    def get_total_duration_ms(self, song, track_index: int = 0) -> float:
+    def get_total_duration_ms(self, song: GTPSong, track_index: int = 0) -> float:
         """
         获取指定音轨的总播放时长(毫秒)
 

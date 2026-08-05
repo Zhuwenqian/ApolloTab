@@ -11,8 +11,8 @@
 """
 
 import os
-from typing import Optional
 
+from ..models.song import GTPSong
 from .binary_stylesheet import BinaryStylesheet
 from .gp7_parser import GP7Parser
 from .gpif_parser import GpifParser
@@ -25,7 +25,7 @@ GP7_8_EXTENSIONS = ('.gp',)  # GP7/GP8(原生解析)
 ALL_SUPPORTED_EXTENSIONS = GP3_5_EXTENSIONS + GP7_8_EXTENSIONS
 
 
-def parse_score(file_path: str):
+def parse_score(file_path: str) -> GTPSong:
     """
     智能调度解析器 - 根据文件扩展名自动选择解析器
 
@@ -69,7 +69,7 @@ def parse_score(file_path: str):
         )
 
 
-def parse_gp7(file_path: str):
+def parse_gp7(file_path: str) -> GTPSong:
     """
     解析 GP7/GP8 (.gp) 文件 - 便捷函数
 

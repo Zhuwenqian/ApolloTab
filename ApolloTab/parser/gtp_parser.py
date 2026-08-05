@@ -16,7 +16,7 @@
 ============================================================
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import guitarpro
 
@@ -73,7 +73,7 @@ _GP3_EXT_EXTENSIONS = {
 }
 
 
-def _pitch_class_to_name(pc, sharp: bool) -> str:
+def _pitch_class_to_name(pc: Any, sharp: bool) -> str:
     """PyGuitarPro PitchClass -> 可读名 (e.g. 'C', 'F#', 'Bb')
 
     参数:
@@ -86,7 +86,7 @@ def _pitch_class_to_name(pc, sharp: bool) -> str:
     return names[int(pc.value) % 12]
 
 
-def _convert_gp3_chord(gp_chord) -> Chord | None:
+def _convert_gp3_chord(gp_chord: Any) -> Chord | None:
     """PyGuitarPro Chord (GP3-5) -> ApolloTab Chord
 
     流程:
@@ -208,7 +208,7 @@ class GTPParser:
 
         return song
 
-    def _convert_key(self, key_sig) -> int:
+    def _convert_key(self, key_sig: Any) -> int:
         """
         转换调号枚举为整数值
         返回: 0=C大调/a小调, 正值=升号数, 负值=降号数
@@ -216,7 +216,7 @@ class GTPParser:
         try:
             # guitarpro.KeySignature 是枚举，尝试获取数值
             if hasattr(key_sig, 'value'):
-                return key_sig.value
+                return int(key_sig.value)
             elif hasattr(key_sig, 'name'):
                 # 从名称推断: CMajor=0, GMajor=1(1升), etc.
                 name_map = {

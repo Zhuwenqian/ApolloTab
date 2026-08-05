@@ -191,7 +191,7 @@ class ThemeConfig:
     # 默认主题名称
     DEFAULT_THEME_NAME = "dark"  # 保持向后兼容，默认使用深色主题
 
-    def __init__(self, colors: dict = None, theme_name: str = "custom"):
+    def __init__(self, colors: dict[str, str] | None = None, theme_name: str = "custom"):
         """
         初始化主题配置
 
@@ -211,7 +211,7 @@ class ThemeConfig:
 
         if colors:
             # 合并用户提供的颜色和默认值（用户值优先）
-            self._colors = {**default_colors, **colors}
+            self._colors: dict[str, str] = {**default_colors, **colors}
         else:
             # 使用默认深色主题
             self._colors = dict(default_colors)
@@ -338,7 +338,7 @@ class ThemeConfig:
         """判断当前是否为浅色（黑白）主题"""
         return self.name == "light"
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> str:
         """
         动态属性访问 - 支持通过 instance.COLOR_BG 的方式获取颜色值
 
@@ -452,7 +452,7 @@ class RenderConfig:
     LINE_SPACING = 30  # 两行六线谱之间的垂直间距(px) - 含符干符尾空间
     SYSTEM_SPACING = 20  # 不同系统(组)之间的额外间距(px)
 
-    def __init__(self, theme: ThemeConfig = None):
+    def __init__(self, theme: ThemeConfig | None = None):
         """
         初始化渲染配置
 

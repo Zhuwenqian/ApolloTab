@@ -31,6 +31,8 @@
 import struct
 from typing import Any, Optional
 
+from ..models.song import GTPSong
+
 
 # ============================================================
 # 数据类型枚举（与 alphaTab DataType 一致）
@@ -119,7 +121,7 @@ class BinaryStylesheet:
             value, offset = self._read_value(data, offset, type_code)
             self._values[key] = value
 
-    def _read_value(self, data: bytes, offset: int, type_code: int):
+    def _read_value(self, data: bytes, offset: int, type_code: int) -> tuple[Any, int]:
         """
         按数据类型读取值，返回 (value, new_offset)
 
@@ -134,25 +136,24 @@ class BinaryStylesheet:
         try:
             if type_code == BinaryStylesheetDataType.BOOLEAN:
                 # 1 字节布尔
-                val = data[offset] == 1
-                return val, offset + 1
+                return data[offset] == 1, offset + 1
 
             elif type_code == BinaryStylesheetDataType.INTEGER:
                 # 4 字节大端 int32
-                val = struct.unpack_from('>i', data, offset)[0]
-                return val, offset + 4
+                return struct.unpack_from('>i', data, offset)[0], offset + 4
 
             elif type_code == BinaryStylesheetDataType.FLOAT:
                 # 4 字节大端 IEEE float32
-                val = struct.unpack_from('>f', data, offset)[0]
-                return val, offset + 4
+                return struct.unpack_from('>f', data, offset)[0], offset + 4
 
             elif type_code == BinaryStylesheetDataType.STRING:
                 # int16 长度 + UTF8 内容
                 str_len = struct.unpack_from('>h', data, offset)[0]
                 offset += 2
-                val = data[offset : offset + str_len].decode('utf-8', errors='ignore')
-                return val, offset + str_len
+                return (
+                    data[offset : offset + str_len].decode('utf-8', errors='ignore'),
+                    offset + str_len,
+                )
 
             elif type_code == BinaryStylesheetDataType.POINT:
                 # int32 x + int32 y
@@ -190,7 +191,7 @@ class BinaryStylesheet:
         """获取单个键值"""
         return self._values.get(key, default)
 
-    def apply(self, song) -> None:
+    def apply(self, song: GTPSong) -> None:
         """
         将样式表应用到 GTPSong 对象
 

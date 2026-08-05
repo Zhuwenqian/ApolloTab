@@ -54,7 +54,37 @@ jobs:
         run: ruff check ApolloTab
 
   # ============================================================
-  # Job 2: Test (pytest + coverage + codecov)
+  # Job 2: Typecheck (mypy)
+  # v1.5.0: 新增 mypy 类型检查 job，失败即红
+  # 入口: pyproject [tool.mypy] files = ["ApolloTab/__init__.py"]
+  #       (mypy 目录模式不全量检查子模块，用 __init__.py 经 follow_imports 全量覆盖核心库)
+  # ============================================================
+  typecheck:
+    name: Typecheck (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package + dev deps
+        # editable 安装: 装核心依赖 (pyguitarpro/pyfluidsynth) + dev (mypy/PyQt5-stubs/ruff/pytest)
+        run: pip install -e ".[dev]"
+
+      - name: Install PyQt5
+        # PyQt5 不在 pyproject (ARM 需 apt 软链)，CI 上直接 pip 装
+        run: pip install PyQt5
+
+      - name: Run mypy
+        # 读 pyproject [tool.mypy] 配置 (files/exclude/overrides)
+        # mypy 仅静态分析，不运行 Qt，无需 QT_QPA_PLATFORM
+        run: mypy
+
+  # ============================================================
+  # Job 3: Test (pytest + coverage + codecov)
   # ============================================================
   test:
     name: Test (py${{ matrix.python-version }} / ${{ matrix.os }})
