@@ -44,7 +44,7 @@
 """
 
 import copy
-from typing import List, Optional
+from typing import Optional
 
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt
 from PyQt5.QtGui import (
@@ -86,7 +86,7 @@ class TabRenderer:
     用法:
         renderer = TabRenderer()
         pixmaps = renderer.render(song, track_index=0)
-        # pixmaps: List[QPixmap] - 每页一张图片
+        # pixmaps: list[QPixmap] - 每页一张图片
 
         # 切换到黑白主题
         renderer.set_theme("light")
@@ -102,7 +102,7 @@ class TabRenderer:
         self.cfg = config or RenderConfig()
         self._layout_engine = TabLayoutEngine(self.cfg)
         # 上次渲染的布局数据(由render()自动填充)
-        # 类型: List[PageLayout], 每页包含SystemLayout→MeasureLayout→BeatLayout坐标
+        # 类型: list[PageLayout], 每页包含SystemLayout→MeasureLayout→BeatLayout坐标
         self.last_layouts: list = []
         # 渲染模式(v0.4.0新增) - 控制渲染哪些谱表
         # 调整效果: 设为 RenderMode.TAB_ONLY 仅渲染六线谱(当前唯一支持)
@@ -583,7 +583,7 @@ class TabRenderer:
 
         y_top = system.y_tab_top
         y_bot = system.y_tab_bottom
-        y_mid = (y_top + y_bot) // 2
+        (y_top + y_bot) // 2
 
         # ===== 1. "T A B" 竖排文字（最左侧）=====
         painter.setPen(QColor(self.cfg.theme.COLOR_TEXT))
@@ -842,9 +842,11 @@ class TabRenderer:
                 try:
                     beat_idx = m_layout.beats.index(b_layout)
                     # 如果是小节最后一个拍，且时值为四分或更长 → 可能是填充
-                    if beat_idx == len(m_layout.beats) - 1:
-                        if beat.duration.value <= NoteDuration.QUARTER.value:
-                            is_meaningful_rest = False
+                    if (
+                        beat_idx == len(m_layout.beats) - 1
+                        and beat.duration.value <= NoteDuration.QUARTER.value
+                    ):
+                        is_meaningful_rest = False
                 except ValueError:
                     pass
 
@@ -1014,7 +1016,6 @@ class TabRenderer:
 
         # 在同一小节的后续拍中查找下一个同弦音符
         target_cx = None
-        target_fret = None
         found_current = False
 
         for b in m_layout.beats:
@@ -1027,7 +1028,6 @@ class TabRenderer:
             for n in b.beat.notes:
                 if n.string == note.string:
                     target_cx = b.x_center
-                    target_fret = n.fret
                     break
             if target_cx is not None:
                 break
@@ -1046,12 +1046,9 @@ class TabRenderer:
         #   上滑(SLIDE_UP)   → 斜线向上 / (从左下到右上，表示音高上升)
         #   下滑(SLIDE_DOWN) → 斜线向下 \ (从左上到右下，表示音高下降)
         #   斜率基于目标音符位置+方向偏移，使斜线清晰可见
-        if slide_type == TechniqueType.SLIDE_UP:
-            # 上滑：终点Y比起点高(屏幕坐标Y更小=视觉上方)
-            end_y = target_y - 8
-        else:
-            # 下滑：终点Y比起点低(屏幕坐标Y更大=视觉下方)
-            end_y = target_y + 8
+        # 上滑(SLIDE_UP): 终点Y比起点高(屏幕坐标Y更小=视觉上方)
+        # 下滑(SLIDE_DOWN): 终点Y比起点低(屏幕坐标Y更大=视觉下方)
+        end_y = target_y - 8 if slide_type == TechniqueType.SLIDE_UP else target_y + 8
 
         # 从品格数字右侧画斜线到目标音符左侧
         start_x = cx + 6
@@ -1325,10 +1322,7 @@ class TabRenderer:
         points = []
         for i in range(wave_count * 2 + 1):
             px = start_x + i * (wave_width // 2)
-            if i % 2 == 0:
-                py = wave_y
-            else:
-                py = wave_y + wave_height
+            py = wave_y if i % 2 == 0 else wave_y + wave_height
             points.append(QPoint(px, py))
 
         for i in range(len(points) - 1):
@@ -1392,15 +1386,12 @@ class TabRenderer:
         tech_text = ''.join(text_techs)
         y_base = system.y_tab_top + note.string * self.cfg.TAB_LINE_SPACING
 
-        # 长标记放在六线谱下方（P.M., Let Ring 等），避免遮挡品格数字
-        if len(tech_text) > 3:
-            tech_y = system.y_tab_bottom + 4
-        else:
-            # 短标记放在品格数字右下方
-            tech_y = y_base + 12
+        # 长标记(>3)放在六线谱下方（P.M., Let Ring 等），避免遮挡品格数字;
+        # 短标记放在品格数字右下方
+        tech_y = system.y_tab_bottom + 4 if len(tech_text) > 3 else y_base + 12
 
         fm = QFontMetrics(font)
-        text_width = fm.horizontalAdvance(tech_text)
+        fm.horizontalAdvance(tech_text)
         text_x = cx + (self.cfg.NOTE_FONT_SIZE // 2) + 2
 
         painter.drawText(QPoint(text_x, tech_y), tech_text)
@@ -1628,8 +1619,8 @@ class TabRenderer:
             return
 
         # 确定符干方向和基准点
-        highest_string = beat.get_highest_string()
-        lowest_string = beat.get_lowest_string()
+        beat.get_highest_string()
+        beat.get_lowest_string()
 
         # 符干方向统一向下：所有符干从第6弦线下方延伸，符尾在下方
         # 这样视觉上更整洁，符尾不会与上方内容重叠

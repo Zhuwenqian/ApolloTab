@@ -48,8 +48,9 @@ jobs:
 
       - name: ruff check
         # Q4/a: 只检查不改源码，失败即红。
-        # 当前源码有预存 lint 告警 (UP035/SIM105/F821/F841 等)，此步骤会失败，
-        # 需逐步修复后转绿。F401 (unused-import) 已在 pyproject 全局忽略。
+        # v1.4.1 已修复全部预存 lint 告警 (F821 补 TYPE_CHECKING import / UP035 删废弃 typing
+        # / SIM105 改 contextlib.suppress / SIM102/108/113 重构 / B904 加 raise from)，本步骤当前全绿。
+        # F401 (unused-import) 在 pyproject 全局忽略 (公开库 re-export)。
         run: ruff check ApolloTab
 
   # ============================================================

@@ -62,9 +62,9 @@
 
 import bisect
 from collections.abc import Callable
-from typing import Dict, List, Optional, Tuple
 
-from PyQt5.QtGui import QColor, QFont, QPainter, QPixmap
+from PyQt5.QtCore import QRect, Qt
+from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 
 from .audio import MidiConverter, MidiEvent, SynthEngine
 from .audio.metronome import MetronomeConfig, MetronomeGenerator
@@ -956,10 +956,8 @@ class GTPPlayer:
 
         # 将dB转换为线性增益 (20 * log10(gain) = db)
         # 范围映射: -60dB → 0.001, 0dB → 1.0, +12dB → ~4.0
-        if db_value <= -60.0:
-            linear_gain = 0.001  # 接近静音但不完全为0
-        else:
-            linear_gain = 10 ** (db_value / 20.0)
+        # 接近静音但不完全为0
+        linear_gain = 0.001 if db_value <= -60.0 else 10 ** (db_value / 20.0)
 
         # 限制在FluidSynth支持的范围内(0.0-10.0)
         linear_gain = max(0.0, min(10.0, linear_gain))
@@ -1031,11 +1029,13 @@ class GTPPlayer:
                             print(
                                 f"[GTPPlayer] Track {track_index} (CH{channel}): {midi_volume}/127"
                             )
-                elif self._audio_mode == self.MODE_CURRENT:
-                    # 单轨模式: 只有一个活动通道(通常是channel 0)
-                    # 所有音轨滑块都控制同一个通道
-                    if self._synth_engine.set_channel_volume(0, midi_volume):
-                        print(f"[GTPPlayer] Track {track_index} (CH0): {midi_volume}/127")
+                elif (
+                    self._audio_mode == self.MODE_CURRENT
+                    and self._synth_engine.set_channel_volume(0, midi_volume)
+                ):
+                    # 单轨模式: 只有一个活动通道(通常是channel 0); 所有音轨滑块都控制同一个通道
+                    # set_channel_volume 既设置音量又返回成功与否 (副作用)
+                    print(f"[GTPPlayer] Track {track_index} (CH0): {midi_volume}/127")
             except Exception as e:
                 print(f"[GTPPlayer] 设置音轨{track_index}音量失败: {e}")
 
@@ -1672,17 +1672,14 @@ class GTPPlayer:
                 num_to_global = {}
                 for entry in self._playhead_timeline:
                     gidx = entry.get('global_meas_idx', -1)
-                    midx = entry.get('meas_idx', -1)  # 系统内局部索引(暂时用)
+                    entry.get('meas_idx', -1)  # 系统内局部索引(暂时用)
                     num_to_global.setdefault(gidx, gidx)
 
                 # 更精确的映射: 遍历原始measures获取 number → global 映射
                 # 因为 build_timeline 的 global_meas_idx 是按渲染顺序递增的,
                 # 而 track.measures 也是按文件顺序排列的, 所以 i → global 映射是一致的
-                idx_to_global = {}
-                tmp_global = 0
-                for i, m in enumerate(track.measures):
-                    idx_to_global[i] = tmp_global
-                    tmp_global += 1
+                # tmp_global 原与 enumerate 的 i 同步递增 (恒等), 直接用 i
+                idx_to_global = {i: i for i, _m in enumerate(track.measures)}
 
                 # Step 2: 按 global_meas_idx 分组时间线条目
                 groups = {}  # global_meas_idx -> [entries]
@@ -1704,7 +1701,7 @@ class GTPPlayer:
                 expanded_timeline = []
                 running_time_ms = 0.0  # 累计运行时间(模拟播放器的时间推进)
 
-                for seq_pos, orig_idx in enumerate(self._expanded_measure_indices):
+                for _seq_pos, orig_idx in enumerate(self._expanded_measure_indices):
                     gidx = idx_to_global.get(orig_idx, orig_idx)
                     entries = groups.get(gidx, [])
 

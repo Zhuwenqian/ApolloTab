@@ -47,12 +47,13 @@
 ============================================================
 """
 
+import contextlib
 import os
 import platform
 import threading
 import time
 from collections.abc import Callable
-from typing import List, Optional
+from typing import Optional
 
 
 class SynthEngine:
@@ -263,10 +264,9 @@ class SynthEngine:
 
                     # Python 3.11+ 同时添加到DLL搜索目录(用于运行时加载)
                     if hasattr(os, 'add_dll_directory'):
-                        try:
+                        # 某些情况下可能失败，不影响PATH方式
+                        with contextlib.suppress(OSError):
                             os.add_dll_directory(_dll_dir)
-                        except OSError:
-                            pass  # 某些情况下可能失败，不影响PATH方式
                 else:
                     print("[SynthEngine] 警告: 未找到 libfluidsynth-3.dll")
 
@@ -1004,10 +1004,9 @@ class SynthEngine:
                 # 所以 wait_ms = target_ms - elapsed_ms 直接得到正确等待时长
                 elapsed_ms = (time.perf_counter() - start_perf) * 1000.0
                 wait_ms = target_ms - elapsed_ms
-                if wait_ms > 0:
-                    if not self._metronome_wait(wait_ms):
-                        # 返回 False 表示收到停止信号
-                        break
+                if wait_ms > 0 and not self._metronome_wait(wait_ms):
+                    # 返回 False 表示收到停止信号
+                    break
                 # 若 wait_ms <= 0 则立即发送（事件在"过去"时）
                 # 这是为了 start_offset 边界或主线程被阻塞时仍能正确发声
 
@@ -1078,17 +1077,14 @@ class SynthEngine:
 
         # === 仅关闭实际发声的音符 ===
         for ch, pitch in notes_to_silence:
-            try:
+            # 单个音符失败不影响其他音符
+            with contextlib.suppress(Exception):
                 self._synth.noteoff(ch, pitch)
-            except Exception:
-                pass  # 单个音符失败不影响其他音符
 
         # === 复位所有通道的pitch_bend（防止残留弯音影响后续音符）===
         for ch in set(ch for ch, _ in notes_to_silence):
-            try:
+            with contextlib.suppress(Exception):
                 self._synth.pitch_bend(ch, 8192)
-            except Exception:
-                pass
 
     # ================================================================
     # [封装] 公共 API：通道音量与循环状态
@@ -1416,23 +1412,26 @@ class SynthEngine:
                 # 原因: 如果只在所有事件播完后才循环(evt_idx>=num_events)，短循环(如小节0-2)
                 #       会先播完整首谱(240秒)才回到A点，用户感知为"没有跳回A点"
                 # 方案: 当事件时间>=loop_end时，视为"到达B点"，立即触发循环重启
-                if self._loop_enabled and self._loop_end_ms > 0:
-                    if target_time_ms >= self._loop_end_ms:
-                        # 到达B点! 触发循环重启
-                        self.silence_all_notes()
+                if (
+                    self._loop_enabled
+                    and self._loop_end_ms > 0
+                    and target_time_ms >= self._loop_end_ms
+                ):
+                    # 到达B点! 触发循环重启
+                    self.silence_all_notes()
 
-                        with self._lock:
-                            if self._stop_flag:
-                                break
-                            # 重置时间基准为循环起点(A点)
-                            start_offset = self._loop_start_ms
-                            self._initial_time_offset = start_offset
-                            self._current_time_ms = start_offset
-                            self._start_time = time.perf_counter()
+                    with self._lock:
+                        if self._stop_flag:
+                            break
+                        # 重置时间基准为循环起点(A点)
+                        start_offset = self._loop_start_ms
+                        self._initial_time_offset = start_offset
+                        self._current_time_ms = start_offset
+                        self._start_time = time.perf_counter()
 
-                        # 重置事件索引，从头遍历(早于loop_start的会被自动跳过)
-                        evt_idx = 0
-                        continue  # 跳过当前事件，从第1个事件重新开始
+                    # 重置事件索引，从头遍历(早于loop_start的会被自动跳过)
+                    evt_idx = 0
+                    continue  # 跳过当前事件，从第1个事件重新开始
 
                 # 跳过已经过去的事件(seek时)
                 if target_time_ms < start_offset:
@@ -1455,10 +1454,9 @@ class SynthEngine:
 
                 # === 触发回调(note_on 时通知视觉层) ===
                 if evt.type == "note_on" and self._on_note_callback:
-                    try:
+                    # 回调异常不影响播放
+                    with contextlib.suppress(Exception):
                         self._on_note_callback(evt.pitch, evt.velocity, target_time_ms)
-                    except Exception:
-                        pass  # 回调异常不影响播放
 
             # === 播放结束 ===
             with self._lock:
@@ -1593,7 +1591,5 @@ class SynthEngine:
 
     def __del__(self):
         """析构函数：确保资源释放"""
-        try:
+        with contextlib.suppress(Exception):
             self.shutdown()
-        except Exception:
-            pass

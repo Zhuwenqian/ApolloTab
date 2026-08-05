@@ -54,7 +54,6 @@ GP7/GP8 兼容性 (v0.4.1-v1.0.1):
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple
 
 # 导入技巧枚举（用于力度计算和断奏判断）
 from ..utils.constants import TechniqueType
@@ -186,7 +185,7 @@ class MidiConverter:
             measures: GTPMeasure 对象列表（需有 is_repeat_open 和 repeat_close 属性）
 
         返回:
-            List[int]: 展开后的原始小节索引序列
+            list[int]: 展开后的原始小节索引序列
               例如 [0,1,2,1,2,3] 表示第0小节→第1小节→第2小节→回到第1小节→...
 
         示例:
@@ -243,7 +242,7 @@ class MidiConverter:
             track_index:  要转换的音轨索引(0-based)
 
         返回:
-            List[MidiEvent]: 按时间排序的 MIDI 事件列表
+            list[MidiEvent]: 按时间排序的 MIDI 事件列表
 
         执行步骤:
           1. 验证输入参数有效性
@@ -508,7 +507,7 @@ class MidiConverter:
             song:  GTPSong 歌曲数据对象
 
         返回:
-            Tuple[events, track_channels]:
+            tuple[events, track_channels]:
               - events: 合并后的全部MIDI事件列表(已排序)
               - track_channels: 每个音轨对应的MIDI通道号列表
 
@@ -534,7 +533,7 @@ class MidiConverter:
         _melody_channels = [c for c in range(16) if c != self.PERCUSSION_CHANNEL]
         _melody_idx = 0  # 旋律轨通道计数器
 
-        for track_idx, track in enumerate(song.tracks):
+        for _track_idx, track in enumerate(song.tracks):
             # === [v0.4.0] 每个音轨独立展开反复记号 ===
             expanded_indices = self.expand_measure_indices(track.measures)
 
@@ -861,8 +860,6 @@ class MidiConverter:
         min_interval = max(beat_ticks // 16, 5)  # 至少1/16拍或5ticks
         last_event_time = 0
 
-        needs_reset = True  # 是否需要在note_off后复位(默认需要)
-
         for i, (pos, val) in enumerate(curve_points):
             # 计算此点的绝对时间(tick)
             point_time = beat_tick + int(actual_duration * pos)
@@ -883,7 +880,7 @@ class MidiConverter:
 
             # 如果最后一个点的value接近0，说明已有释放段
             if i == len(curve_points) - 1 and abs(val) < 5:
-                needs_reset = False  # 已经回到原位了
+                pass  # 已经回到原位了
 
         # === 步骤3: 强制复位(在note_off之后) ===
         # 无论曲线是否包含释放段，都在音符结束后+2ticks发送一次8192复位

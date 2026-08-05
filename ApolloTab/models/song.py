@@ -11,7 +11,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from .track import GTPTrack
 
@@ -95,9 +95,8 @@ class GTPSong:
         """
         guitar_instruments = {24, 25, 26, 27, 28, 29, 30}
         for track in self.tracks:
-            if track.is_visible and not track.is_mute:
-                if track.instrument in guitar_instruments:
-                    return track
+            if track.is_visible and not track.is_mute and track.instrument in guitar_instruments:
+                return track
         # 回退: 第一个可见轨道
         for track in self.tracks:
             if track.is_visible:

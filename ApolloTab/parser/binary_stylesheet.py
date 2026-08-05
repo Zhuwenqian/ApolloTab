@@ -29,7 +29,7 @@
 """
 
 import struct
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 # ============================================================
@@ -129,7 +129,7 @@ class BinaryStylesheet:
             type_code: 数据类型枚举值
 
         返回:
-            Tuple[值, 新偏移]
+            tuple[值, 新偏移]
         """
         try:
             if type_code == BinaryStylesheetDataType.BOOLEAN:

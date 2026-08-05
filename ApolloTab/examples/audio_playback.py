@@ -46,10 +46,17 @@
 ============================================================
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # 仅类型检查时导入; 运行时由 main() 内部 try-import 完成优雅降级
+    from ApolloTab import SynthEngine
 
 
 def main():
@@ -271,10 +278,7 @@ def show_progress(engine: SynthEngine, stop_event: threading.Event):
                 last_time = current_time
 
                 # 计算进度百分比
-                if total_time > 0:
-                    progress = min(100, (current_time / total_time) * 100)
-                else:
-                    progress = 0
+                progress = min(100, current_time / total_time * 100) if total_time > 0 else 0
 
                 # 构建进度条（50字符宽）
                 bar_width = 50

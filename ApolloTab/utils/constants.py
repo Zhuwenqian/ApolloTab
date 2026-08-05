@@ -14,7 +14,6 @@
 """
 
 from enum import Enum, IntEnum
-from typing import List, Tuple
 
 # ============================================================
 # 标准调弦定义（MIDI音高值）
@@ -63,7 +62,6 @@ DURATION_RATIO = {
 
 # 附点时值乘数（附点增加原时值的50%）
 DOTTED_MULTIPLIER = 1.5
-
 
 # ============================================================
 # 技巧类型枚举（可扩展）
@@ -115,7 +113,6 @@ TECHNIQUE_ABBREVIATION = {
     TechniqueType.TRILL: "tr",
     TechniqueType.ACCENTUATED: ">",
 }
-
 
 # ============================================================
 # 渲染主题系统（v0.2.4）

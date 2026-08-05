@@ -111,6 +111,7 @@ ignore = [
     "E501",   # 行过长: 由 ruff format 处理换行，不强制 lint 报错(存量代码有长行)
     "F401",   # 未使用 import: 本库为公开发布库，__init__.py 的 re-export 与公共 API 难以静态判定使用方，故全局忽略
     "E741",   # 模糊变量名(l/I/O): 音乐领域单字母变量常见(如弦序 i)，暂忽略
+    "E402",   # module level import not at top of file  (常量定义后 import 常见)
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -38,10 +38,12 @@ from __future__ import annotations
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import TYPE_CHECKING
 
-# 注意: 不在这里从 midi_converter 导入 MidiEvent，避免循环导入。
-# MidiEvent 在生成事件的方法内部通过延迟导入获取。
+if TYPE_CHECKING:
+    # 仅类型检查时导入 MidiEvent 用于注解，避免运行时循环导入;
+    # 运行时实例化由各方法内部的延迟导入完成 (见 _create_channel_setup_events 等)
+    from .midi_converter import MidiEvent
 
 
 @dataclass

@@ -34,9 +34,10 @@
 ============================================================
 """
 
+import contextlib
 import copy
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from ..models.beat import GTPBeat
 from ..models.chord import Chord
@@ -71,7 +72,6 @@ _CHORD_ACCIDENTAL_MAP: dict[str, str] = {
     'DoubleSharp': '##',
     'DoubleFlat': 'bb',
 }
-
 
 # ============================================================
 # GPIF 内部数据结构（仅用于解析阶段暂存）
@@ -160,10 +160,7 @@ def _build_chord_from_xml(chord_el: ET.Element) -> Chord | None:
 
     # 第五音变化
     if fifth == 'Diminished':
-        if 'Seventh' in degree_map and degree_map['Seventh'] == 'Minor':
-            suffix = 'm7b5'
-        else:
-            suffix = 'dim'
+        suffix = 'm7b5' if 'Seventh' in degree_map and degree_map['Seventh'] == 'Minor' else 'dim'
     elif fifth == 'Augmented':
         suffix = 'aug'
 
@@ -274,7 +271,6 @@ _SLIDE_FLAG_MAP_IN = {
     32: 'IntoFromAbove',
 }
 
-
 # ============================================================
 # 主解析器类
 # ============================================================
@@ -354,7 +350,7 @@ class GpifParser:
         try:
             root = ET.fromstring(xml_string)
         except ET.ParseError as e:
-            raise ValueError(f"GPIF XML 解析失败: {e}")
+            raise ValueError(f"GPIF XML 解析失败: {e}") from e
 
         # 验证根节点
         if root.tag != 'GPIF':
@@ -440,7 +436,7 @@ class GpifParser:
 
         重要: .//Chord 会同时拿到定义节点和引用节点, 必须用 KeyNote 子节点过滤
 
-        存储到 self._chord_definitions (List[Chord], 按 document order 索引)
+        存储到 self._chord_definitions (list[Chord], 按 document order 索引)
         """
         for chord_el in root.findall('.//Chord'):
             # 引用节点无 KeyNote, 跳过
@@ -556,10 +552,8 @@ class GpifParser:
                 # 解析 "120 2" 格式，取第一个数字作为 BPM
                 parts = auto_value.split()
                 if parts:
-                    try:
+                    with contextlib.suppress(ValueError):
                         self._master_tempo = int(parts[0])
-                    except ValueError:
-                        pass
 
     # ----- Tracks 节点解析 -----
 
@@ -669,11 +663,9 @@ class GpifParser:
                     is_percussion = True
             elif c.tag == 'LineCount':
                 # 五线谱行数(普通吉他5行，鼓谱5行/3行)
-                try:
-                    line_count = int((c.text or '').strip())
-                    # 调整效果: 行数影响五线谱渲染(本程序不渲染五线谱，仅记录)
-                except ValueError:
-                    pass
+                # 调整效果: 行数影响五线谱渲染(本程序不渲染五线谱，仅记录)
+                with contextlib.suppress(ValueError):
+                    int((c.text or '').strip())
         return is_percussion
 
     def _parse_articulations(self, node: ET.Element, track: GTPTrack) -> None:
@@ -722,15 +714,11 @@ class GpifParser:
                     # alphaTab 用第一个值作为 articulation 内部 id
                     parts = sub_text.split()
                     if parts:
-                        try:
+                        with contextlib.suppress(ValueError):
                             articulation.unique_id = parts[0]
-                        except ValueError:
-                            pass
                 elif sub.tag == 'StaffLine':
-                    try:
+                    with contextlib.suppress(ValueError):
                         articulation.staff_line = int(sub_text)
-                    except ValueError:
-                        pass
                 elif sub.tag == 'Type':
                     # 元素类型，与 Name 组合成唯一键
                     articulation.element_type = sub_text
@@ -743,7 +731,7 @@ class GpifParser:
         """解析 <MidiConnection> 节点 - MIDI 通道设置"""
         for c in node:
             tag = c.tag
-            text = (c.text or '').strip() if c.text else ''
+            (c.text or '').strip() if c.text else ''
             if tag == 'PrimaryChannel':
                 # 主通道(暂存到 track.number 用于后续 MIDI 转换分配)
                 pass
@@ -755,10 +743,8 @@ class GpifParser:
         """解析 <GeneralMidi> 节点 - 旧版 MIDI 配置"""
         for c in node:
             if c.tag == 'Program':
-                try:
+                with contextlib.suppress(ValueError):
                     sound.program = int((c.text or '').strip())
-                except ValueError:
-                    pass
 
     def _parse_staves(self, node: ET.Element, track: GTPTrack) -> None:
         """
@@ -800,18 +786,14 @@ class GpifParser:
                         # 变调夹位置
                         for sub in prop:
                             if sub.tag == 'Fret':
-                                try:
+                                with contextlib.suppress(ValueError):
                                     track.capo = int((sub.text or '0').strip())
-                                except ValueError:
-                                    pass
                     elif name == 'FretCount':
                         # 品格数
                         for sub in prop:
                             if sub.tag == 'Number':
-                                try:
+                                with contextlib.suppress(ValueError):
                                     track.fret_count = int((sub.text or '24').strip())
-                                except ValueError:
-                                    pass
 
     def _parse_sounds(self, node: ET.Element, sound: _GpifSound) -> None:
         """解析 <Sounds> 节点 - 提取 MIDI Program/Bank"""
@@ -822,26 +804,20 @@ class GpifParser:
                 if c.tag == 'MIDI':
                     for midi_c in c:
                         if midi_c.tag == 'Program':
-                            try:
+                            with contextlib.suppress(ValueError):
                                 sound.program = int((midi_c.text or '0').strip())
-                            except ValueError:
-                                pass
                         elif midi_c.tag == 'MSB':
                             # Bank MSB(高7位)
-                            try:
+                            with contextlib.suppress(ValueError):
                                 sound.bank = (sound.bank & 0x7F) | (
                                     int((midi_c.text or '0').strip()) << 7
                                 )
-                            except ValueError:
-                                pass
                         elif midi_c.tag == 'LSB':
                             # Bank LSB(低7位)
-                            try:
+                            with contextlib.suppress(ValueError):
                                 sound.bank = (sound.bank & 0x3F80) | (
                                     int((midi_c.text or '0').strip()) & 0x7F
                                 )
-                            except ValueError:
-                                pass
             # 只取第一个 Sound 的 MIDI 信息
             break
 
@@ -895,18 +871,14 @@ class GpifParser:
                 # 拍号 "4/4"
                 parts = text.split('/')
                 if len(parts) == 2:
-                    try:
+                    with contextlib.suppress(ValueError):
                         mb_data['time_signature'] = (int(parts[0]), int(parts[1]))
-                    except ValueError:
-                        pass
             elif tag == 'Key':
                 # 调号
                 for kc in c:
                     if kc.tag == 'AccidentalCount':
-                        try:
+                        with contextlib.suppress(ValueError):
                             mb_data['key_signature'] = int((kc.text or '0').strip())
-                        except ValueError:
-                            pass
             elif tag == 'Bars':
                 # Bar ID 列表(空格分隔)
                 bar_ids = text.split() if text else []
@@ -1095,10 +1067,9 @@ class GpifParser:
                         self._chord_idx_of_beat[beat_id] = -1
                 else:
                     self._chord_idx_of_beat[beat_id] = -1
-            elif tag == 'GraceNotes':
+            elif tag == 'GraceNotes' and text in ('OnBeat', 'BeforeBeat'):
                 # 装饰音(OnBeat/BeforeBeat)
-                if text in ('OnBeat', 'BeforeBeat'):
-                    beat.grace_type = text
+                beat.grace_type = text
 
         self._beat_by_id[beat_id] = beat
 
@@ -1152,8 +1123,6 @@ class GpifParser:
         bend_middle_offset1 = None
         bend_middle_offset2 = None
         bend_destination = None  # (offset, value)
-        element = -1  # GP6 打击乐 element
-        variation = -1  # GP6 打击乐 variation
         midi_pitch_from_prop = None  # 从 ConcertPitch/TransposedPitch 提取的 MIDI
 
         for c in node:
@@ -1173,34 +1142,26 @@ class GpifParser:
                         # track.strings 反转为 ApolloTab 内部约定(0=最高音弦/顶线).
                         for sub in prop:
                             if sub.tag == 'String':
-                                try:
+                                with contextlib.suppress(ValueError):
                                     note.string = int((sub.text or '0').strip())
-                                except ValueError:
-                                    pass
                     elif name == 'Fret':
                         # 品格数
                         for sub in prop:
                             if sub.tag == 'Fret':
-                                try:
+                                with contextlib.suppress(ValueError):
                                     note.fret = int((sub.text or '0').strip())
-                                except ValueError:
-                                    pass
                     elif name == 'Element':
                         # GP6 打击乐 element
                         for sub in prop:
                             if sub.tag == 'Element':
-                                try:
-                                    element = int((sub.text or '-1').strip())
-                                except ValueError:
-                                    pass
+                                with contextlib.suppress(ValueError):
+                                    int((sub.text or '-1').strip())
                     elif name == 'Variation':
                         # GP6 打击乐 variation
                         for sub in prop:
                             if sub.tag == 'Variation':
-                                try:
-                                    variation = int((sub.text or '-1').strip())
-                                except ValueError:
-                                    pass
+                                with contextlib.suppress(ValueError):
+                                    int((sub.text or '-1').strip())
                     elif name == 'Muted':
                         # Dead note 闷音弹奏
                         for sub in prop:
@@ -1234,10 +1195,8 @@ class GpifParser:
                         # 泛音品位
                         for sub in prop:
                             if sub.tag == 'HFret':
-                                try:
+                                with contextlib.suppress(ValueError):
                                     note.harmonic_value = float((sub.text or '0').strip())
-                                except ValueError:
-                                    pass
                     elif name == 'Slide':
                         # 滑音(位标志)
                         for sub in prop:
@@ -1467,10 +1426,8 @@ class GpifParser:
                 if sub.tag == 'Step':
                     step = (sub.text or '').strip()
                 elif sub.tag == 'Octave':
-                    try:
+                    with contextlib.suppress(ValueError):
                         octave = int((sub.text or '0').strip())
-                    except ValueError:
-                        pass
                 elif sub.tag == 'Accidental':
                     accidental = (sub.text or '').strip()
             # 计算 MIDI 音高: (octave+1)*12 + step_offset + accidental_offset
@@ -1523,10 +1480,8 @@ class GpifParser:
                     pass
             elif tag == 'AugmentationDot':
                 # 附点: <AugmentationDot count="1"/>
-                try:
+                with contextlib.suppress(ValueError):
                     rhythm.dots = int(c.get('count', '0'))
-                except ValueError:
-                    pass
 
         self._rhythm_by_id[rhythm.rhythm_id] = rhythm
 

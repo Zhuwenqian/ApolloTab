@@ -20,7 +20,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from ..models.beat import GTPBeat
 from ..models.measure import GTPMeasure
@@ -196,11 +196,7 @@ class TabLayoutEngine:
         current_width = 0
 
         # 每个小节的最小宽度 = 左右内边距 + 至少一个音符的空间
-        min_measure_width = (
-            self.cfg.MEASURE_PADDING_LEFT
-            + self.cfg.MEASURE_PADDING_RIGHT
-            + self.cfg.NOTE_MIN_SPACING
-        )
+        (self.cfg.MEASURE_PADDING_LEFT + self.cfg.MEASURE_PADDING_RIGHT + self.cfg.NOTE_MIN_SPACING)
 
         for measure in measures:
             # 估算该小节需要的宽度（基于拍的数量和平均间距）
@@ -293,9 +289,9 @@ class TabLayoutEngine:
         # 六线谱高度 = (弦数-1) × 弦间距（动态根据实际弦数计算）
         tab_height = (string_count - 1) * self.cfg.TAB_LINE_SPACING
         # 一行总高度 = 六线谱高度 + 符干空间 + 行间距
-        row_total_height = tab_height + self.cfg.STEM_HEIGHT + self.cfg.LINE_SPACING
+        tab_height + self.cfg.STEM_HEIGHT + self.cfg.LINE_SPACING
 
-        for row_idx, row_measures in enumerate(rows):
+        for _row_idx, row_measures in enumerate(rows):
             # 创建系统布局
             system = SystemLayout()
             system.string_count = string_count  # 记录弦数(供渲染器使用)
@@ -422,7 +418,7 @@ class TabLayoutEngine:
         #       重置为相对于所在页面顶部的位置，否则第2页及之后的系统
         #       会画在页面底部（因为绝对Y值已超过一页高度）
         pages: list[PageLayout] = []
-        for page_idx, page_systems in enumerate(raw_pages):
+        for _page_idx, page_systems in enumerate(raw_pages):
             page = PageLayout(page_number=len(pages) + 1)
             current_y = self.cfg.PAGE_MARGIN_TOP
 

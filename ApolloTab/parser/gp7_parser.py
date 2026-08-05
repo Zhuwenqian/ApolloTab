@@ -114,7 +114,7 @@ class GP7Parser:
         try:
             zf = zipfile.ZipFile(io.BytesIO(data))
         except zipfile.BadZipFile as e:
-            raise zipfile.BadZipFile(f"文件不是有效的 GP7/GP8 格式(非ZIP): {e}")
+            raise zipfile.BadZipFile(f"文件不是有效的 GP7/GP8 格式(非ZIP): {e}") from e
 
         # === Step 2: 读取版本号 ===
         try:
@@ -127,8 +127,8 @@ class GP7Parser:
         # === Step 3: 解析 GPIF XML (核心) ===
         try:
             gpif_bytes = zf.read(_PATH_GPIF)
-        except KeyError:
-            raise KeyError(f"GP7/GP8 文件缺少必需的条目: {_PATH_GPIF}")
+        except KeyError as e:
+            raise KeyError(f"GP7/GP8 文件缺少必需的条目: {_PATH_GPIF}") from e
 
         gpif_xml = gpif_bytes.decode('utf-8', errors='ignore')
         gpif_parser = GpifParser()
