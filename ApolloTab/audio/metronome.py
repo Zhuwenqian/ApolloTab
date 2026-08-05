@@ -44,7 +44,6 @@ if TYPE_CHECKING:
     # 仅类型检查时导入 MidiEvent 用于注解，避免运行时循环导入;
     # 运行时实例化由各方法内部的延迟导入完成 (见 _create_channel_setup_events 等)
     from ..models.song import GTPSong
-
     from .midi_converter import MidiEvent
 
 

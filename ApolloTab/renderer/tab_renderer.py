@@ -44,7 +44,7 @@
 """
 
 import copy
-from typing import Optional
+from typing import Any, Optional
 
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt
 from PyQt5.QtGui import (
@@ -56,8 +56,12 @@ from PyQt5.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QPolygon,
 )
 
+from ..models.beat import GTPBeat
+from ..models.measure import GTPMeasure
+from ..models.note import GTPNote
 from ..models.song import GTPSong
 from ..models.track import GTPTrack
 from ..utils.constants import (
@@ -109,7 +113,7 @@ class TabRenderer:
         #           其他模式需通过子类重写 _draw_standard_notation 等钩子方法实现
         self.render_mode: RenderMode = RenderMode.TAB_ONLY
 
-    def set_theme(self, theme) -> None:
+    def set_theme(self, theme: Any) -> None:
         """
         切换渲染主题（核心接口）
 
@@ -212,7 +216,11 @@ class TabRenderer:
         return ThemeConfig.list_themes()
 
     def render(
-        self, song: GTPSong, track_index: int = 0, page_width: int = None, page_height: int = None
+        self,
+        song: GTPSong,
+        track_index: int = 0,
+        page_width: int | None = None,
+        page_height: int | None = None,
     ) -> list[QPixmap]:
         """
         渲染指定音轨的完整六线谱
@@ -253,7 +261,11 @@ class TabRenderer:
         return pixmaps
 
     def render_from_file(
-        self, file_path: str, track_index: int = 0, page_width: int = None, page_height: int = None
+        self,
+        file_path: str,
+        track_index: int = 0,
+        page_width: int | None = None,
+        page_height: int | None = None,
     ) -> list[QPixmap]:
         """
         便捷方法：从文件路径直接渲染（解析+渲染一步完成）
@@ -417,7 +429,7 @@ class TabRenderer:
             painter.setFont(kt_font)
             painter.setPen(QColor("#888888"))
             painter.drawText(
-                QRect(page_width - 180, y, 170, 25), Qt.AlignRight | Qt.AlignVCenter, kt_str
+                QRect(page_width - 180, y, 170, 25), int(Qt.AlignRight | Qt.AlignVCenter), kt_str
             )
 
         y += 35  # 标题行与信息行之间的行距（增大以增加呼吸空间）
@@ -507,6 +519,9 @@ class TabRenderer:
             else:
                 num, den = 4, 4
 
+            # 确保 key_val 为 int（防止 None 传入 dict.get）
+            if key_val is None:
+                key_val = 0
             key_name = KEY_NAMES.get(key_val, f'?{key_val}')
             return f"1={key_name} ({num}/{den})"
 
@@ -557,7 +572,7 @@ class TabRenderer:
         #    在所有小节绘制完成后统一收集并画在弦线区域上方
         self._draw_system_technique_extensions(painter, system)
 
-    def _draw_info_bar(self, painter: QPainter, measure, system: SystemLayout) -> None:
+    def _draw_info_bar(self, painter: QPainter, measure: GTPMeasure, system: SystemLayout) -> None:
         """
         绘制独立信息栏（每行系统开头，类似 Guitar Pro 的谱号区域）
 
@@ -666,7 +681,9 @@ class TabRenderer:
         painter.drawLine(divider_x, y_top - 2, divider_x, y_bot + 2)
         painter.drawLine(divider_x + 3, y_top - 2, divider_x + 3, y_bot + 2)
 
-    def _draw_time_signature(self, painter: QPainter, measure, system: SystemLayout) -> None:
+    def _draw_time_signature(
+        self, painter: QPainter, measure: GTPMeasure, system: SystemLayout
+    ) -> None:
         """
         [已废弃] 拍号绘制已合并到 _draw_info_bar() 中统一处理。
         此方法保留仅作向后兼容。
@@ -801,7 +818,7 @@ class TabRenderer:
         painter: QPainter,
         system: SystemLayout,
         b_layout: BeatLayout,
-        m_layout: MeasureLayout = None,
+        m_layout: MeasureLayout | None = None,
     ) -> None:
         """
         绘制单个拍的所有内容：
@@ -861,14 +878,16 @@ class TabRenderer:
 
         # --- 绘制技巧标记（传入m_layout以支持滑音连线查找下一个音符）---
         for note in beat.notes:
-            # 记录父拍引用，供滑音查找用
-            note._parent_beat = beat
+            # 记录父拍引用，供滑音查找用（动态属性，用 setattr 绕过 mypy attr-defined 检查）
+            setattr(note, '_parent_beat', beat)  # noqa: B010
             self._draw_technique_marks(painter, note, cx, system, m_layout)
 
         # --- 绘制符干 ---
         self._draw_stem(painter, beat, b_layout, system)
 
-    def _draw_note_fret(self, painter: QPainter, note, cx: int, system: SystemLayout) -> None:
+    def _draw_note_fret(
+        self, painter: QPainter, note: GTPNote, cx: int, system: SystemLayout
+    ) -> None:
         """
         在对应弦线上绘制品格数字
 
@@ -907,7 +926,12 @@ class TabRenderer:
         painter.drawText(QPoint(text_x, text_y), display_text)
 
     def _draw_technique_marks(
-        self, painter: QPainter, note, cx: int, system: SystemLayout, m_layout: MeasureLayout = None
+        self,
+        painter: QPainter,
+        note: GTPNote,
+        cx: int,
+        system: SystemLayout,
+        m_layout: MeasureLayout | None = None,
     ) -> None:
         """
         绘制技巧标记（增强版：根据技巧类型选择不同的可视化方式）
@@ -983,16 +1007,16 @@ class TabRenderer:
             QPoint(cx, y_base + size),  # 底点
             QPoint(cx - size, y_base),  # 左点
         ]
-        painter.drawPolygon(diamond)
+        painter.drawPolygon(QPolygon(diamond))
 
     def _draw_slide_line(
         self,
         painter: QPainter,
-        note,
+        note: GTPNote,
         cx: int,
         y_base: int,
         system: SystemLayout,
-        m_layout: MeasureLayout,
+        m_layout: MeasureLayout | None,
         slide_type: TechniqueType,
     ) -> None:
         """
@@ -1017,9 +1041,11 @@ class TabRenderer:
         # 在同一小节的后续拍中查找下一个同弦音符
         target_cx = None
         found_current = False
+        # _parent_beat 是渲染时动态附加的属性，用 getattr 安全访问
+        parent_beat = getattr(note, '_parent_beat', None)
 
         for b in m_layout.beats:
-            if b.beat is note._parent_beat:
+            if b.beat is parent_beat:
                 found_current = True
                 continue
             if not found_current:
@@ -1067,11 +1093,11 @@ class TabRenderer:
     def _draw_hammer_on_arc(
         self,
         painter: QPainter,
-        note,
+        note: GTPNote,
         cx: int,
         y_base: int,
         system: SystemLayout,
-        m_layout: MeasureLayout,
+        m_layout: MeasureLayout | None,
         tech_type: TechniqueType,
     ) -> None:
         """
@@ -1098,9 +1124,11 @@ class TabRenderer:
         # 查找下一个同弦音符的位置
         target_cx = None
         found_current = False
+        # _parent_beat 是渲染时动态附加的属性，用 getattr 安全访问
+        parent_beat = getattr(note, '_parent_beat', None)
 
         for b in m_layout.beats:
-            if b.beat is note._parent_beat:
+            if b.beat is parent_beat:
                 found_current = True
                 continue
             if not found_current:
@@ -1148,7 +1176,7 @@ class TabRenderer:
         painter.drawText(QPoint(label_x, label_y), label)
 
     def _draw_bend_indicator(
-        self, painter: QPainter, note, cx: int, y_base: int, system: SystemLayout
+        self, painter: QPainter, note: GTPNote, cx: int, y_base: int, system: SystemLayout
     ) -> None:
         """
         绘制推弦指示器 - 严格参照 Guitar Pro 5 的推弦记谱格式
@@ -1329,7 +1357,7 @@ class TabRenderer:
             painter.drawLine(points[i], points[i + 1])
 
     def _draw_technique_text_labels(
-        self, painter: QPainter, note, cx: int, system: SystemLayout
+        self, painter: QPainter, note: GTPNote, cx: int, system: SystemLayout
     ) -> None:
         """
         绘制技巧文字标签（用于不需要图形化或已有图形化但还需补充文字的技巧）
@@ -1412,7 +1440,7 @@ class TabRenderer:
         算法: 使用与P.M.相同的跨拍连线算法(_draw_dashed_extension_line)
         """
         # === 收集整个系统中所有有对应技巧的拍 ===
-        tech_beats = {
+        tech_beats: dict[TechniqueType, list[tuple[int, int, int]]] = {
             TechniqueType.PALM_MUTE: [],  # P.M.
             TechniqueType.LET_RING: [],  # let ring
             TechniqueType.NATURAL_HARMONIC: [],  # N.H.
@@ -1506,7 +1534,7 @@ class TabRenderer:
         label: str,
         color: QColor,
         strict: bool = False,
-        base_y: int = None,
+        base_y: int | None = None,
     ) -> None:
         """
         绘制通用虚线延长线（P.M. / Let Ring / 泛音 共用方法）
@@ -1598,7 +1626,7 @@ class TabRenderer:
             i = seg_end + 1
 
     def _draw_stem(
-        self, painter: QPainter, beat, b_layout: BeatLayout, system: SystemLayout
+        self, painter: QPainter, beat: GTPBeat, b_layout: BeatLayout, system: SystemLayout
     ) -> None:
         """
         绘制符干
@@ -1647,7 +1675,7 @@ class TabRenderer:
     def _draw_beam_flags(
         self,
         painter: QPainter,
-        beat,
+        beat: GTPBeat,
         b_layout: BeatLayout,
         system: SystemLayout,
         stem_up: bool,
@@ -1704,7 +1732,9 @@ class TabRenderer:
             painter.setBrush(QColor(self.cfg.theme.COLOR_BEAM))
             painter.drawEllipse(dot_cx, dot_cy - 2, 4, 4)
 
-    def _draw_rest_symbol(self, painter: QPainter, beat, cx: int, system: SystemLayout) -> None:
+    def _draw_rest_symbol(
+        self, painter: QPainter, beat: GTPBeat, cx: int, system: SystemLayout
+    ) -> None:
         """
         绘制休止符符号（根据时值绘制不同的休止符形状）
 
@@ -1854,7 +1884,10 @@ class TabRenderer:
         bg_color.setAlpha(220)
 
         for b_layout in filtered:
-            chord_name = b_layout.beat.chord.name
+            chord = b_layout.beat.chord
+            if chord is None:
+                continue
+            chord_name = chord.name
             text_width = fm.horizontalAdvance(chord_name)
             x_center = int(b_layout.x_center)
             # 背景框: 居中于 x_center, 上下留 4px padding

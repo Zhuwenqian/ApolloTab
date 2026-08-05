@@ -1,163 +1,98 @@
 # ApolloTab Release Notes
 
-The entries below cover all commits from `7152997` through `0ed11ad`.
-Contributor: LiJingrong123456
+## v1.5.0
 
-## Overview
-
-This release introduces **chord parsing and rendering** for both GP3-5 and GP7/GP8
-files, decouples the **metronome onto an independent playback thread**, hardens the
-**synth/player encapsulation** with a clean public API, and fixes several
-**playhead alignment** and **pause/resume** bugs in the audio engine. The minimum
-supported Python version is raised to **3.11**.
+This release introduces **static type checking with mypy** across the entire
+core library, hardens function signatures throughout the codebase, and wires a
+dedicated **typecheck job** into CI.
 
 ---
 
-## Features
+## Type Checking
 
-### Chord Support and Rendering
-- **New `Chord` data model** (`ApolloTab/models/chord.py`): stores key note, bass
-  note, suffix (`m` / `dim` / `aug` / `sus4` / `m7b5`), and extensions
-  (`7` / `maj7` / `9` / `11` / `13` / `b9` / `#11`). The full chord name
-  (e.g. `G/B`, `Am7b5`, `C13`) is auto-computed in `__post_init__`.
-- **`GTPBeat.chord` field** added to the beat model; `Chord` is now exported from
-  both `ApolloTab` and `ApolloTab.models`.
-- **GPIF (GP7/GP8) chord parsing**: `_build_chord_from_xml` converts each
-  `<Chord>` definition into a `Chord` object. Definitions are collected in
-  document order into `_chord_definitions`, and each beat's `<Chord>` reference
-  (an integer index) is resolved to `beat.chord` during model construction.
-  Suffix priority rules: 13th suppresses 7th/9th, 6th suppresses 7th, and
-  `m7b5` does not duplicate the 7th.
-- **GP3-5 chord extraction**: `_convert_gp3_chord` maps PyGuitarPro's structured
-  `Chord` fields (`root` / `bass` / `type` / `extension` / `sharp`) onto the
-  ApolloTab `Chord` model, with sharp/flat pitch-class name resolution. A
-  validation step cross-checks the constructed name against PyGuitarPro's
-  precomputed `name`; mismatches return `None` so ambiguous chords are hidden
-  rather than rendered incorrectly.
-- **Chord name rendering** in `TabRenderer`: `_draw_chord_names` paints each
-  chord name above the staff (12pt bold with a rounded background), and
-  `_first_chord_in_sequence` deduplicates consecutive identical chords so a
-  sustained chord is labeled only once per run. `RenderConfig.PAGE_MARGIN_TOP`
-  is increased from `60` to `100` px to reserve space for the labels.
+### mypy Configuration and CI
+- A complete `[tool.mypy]` section is added to `pyproject.toml` with
+  `python_version = "3.11"`, `disallow_untyped_defs`, `no_implicit_optional`,
+  `warn_return_any`, and `warn_unused_configs`. The check entry point is
+  `ApolloTab/__init__.py`, which through `follow_imports` exercises the full
+  core import graph.
+- Third-party libraries without `py.typed` stubs (`guitarpro`, `fluidsynth`)
+  are silenced via per-module `ignore_missing_imports`. Unused override
+  entries (`guitarpro.*`, `numpy`, `numpy.*`) were pruned to keep
+  `warn_unused_configs` clean.
+- A new `typecheck` job in `.github/workflows/ci.yml` runs `mypy` on
+  `ubuntu-latest` with Python 3.12 and fails the build on any type error.
+- `PyQt5-stubs>=5.15.6.0` is added to the `dev` dependency group so Qt-related
+  functions receive full type checking.
 
-### Metronome Independence
-- Metronome events are no longer mixed into the main MIDI event stream. They are
-  loaded via `SynthEngine.load_metronome_events(...)` and driven by a dedicated
-  thread with its own time base, pause/stop flags, and FluidSynth channel.
-- Toggling the metronome or changing its volume no longer requires rebuilding
-  the main audio events. See the updated README snippet using
-  `MetronomeGenerator.generate_for_song(...)`.
+### Signature and Type Fixes
+- **`player.py`**: 14 parameters changed from implicit-`None` defaults to
+  explicit `T | None = None`; `measure_entries` / `num_to_global` / `groups`
+  annotated as `dict[...]`; five dictionary-value returns wrapped in `float()`
+  to satisfy `no-any-return`; the `if note_callback:` guard switched to
+  `is not None` to fix `truthy-function`; `__del__` / `set_theme` /
+  `update_playhead` and the module-level `render_gtp_to_images` gained return
+  annotations.
+- **`tab_renderer.py`**: eleven drawing methods (`_draw_note_fret`,
+  `_draw_technique_marks`, `_draw_slide_line`, `_draw_hammer_on_arc`,
+  `_draw_bend_indicator`, `_draw_technique_text_labels`, `_draw_stem`,
+  `_draw_beam_flags`, `_draw_rest_symbol`, `_draw_info_bar`,
+  `_draw_time_signature`) now declare `note` / `beat` / `measure` parameters as
+  `GTPNote` / `GTPBeat` / `GTPMeasure`; `m_layout` widened to
+  `MeasureLayout | None`; `drawText` flags wrapped with `int()` and
+  `drawPolygon` wrapped with `QPolygon(...)` to match PyQt5-stubs overloads;
+  `tech_beats` annotated; `chord` access guarded against `None`.
+- **`gpif_parser.py`**: `_GpifRhythm`, `_GpifSound`, and `GP7Parser.__init__`
+  annotated `-> None`; the `self.__init__()` reset call was refactored into a
+  dedicated `_reset_state()` method to eliminate the
+  `instance.__init__` unsoundness warning; `_parse_dom`, `_parse_score_node`,
+  and `_build_model` open with `assert self._song is not None` to narrow the
+  `GTPSong | None` type; `mb_data` / `bar_data` annotated as `dict[str, Any]`.
 
----
+### Data Model Adjustments
+- **`GTPNote.vibrato`** (`models/note.py`): new `VibratoType | None` field.
+  GP7/GP8 `<Vibrato>` Slight/Wide markers now land as the enum, ready for
+  sine-wave vibrato synthesis in the MIDI path.
+- **`BendData.bend_type`** type changed from `str` to `BendType | str` so the
+  GP3-5 path (which passes a string) and the GP7/GP8 path (which passes a
+  `BendType` enum) are both type-correct.
 
-## Improvements
-
-### SynthEngine / GTPPlayer Encapsulation
-- New public API on `SynthEngine` replaces direct access to private members:
-  - `is_synth_available` (replaces `hasattr(engine, '_synth') and engine._synth`)
-  - `set_channel_volume(channel, midi_volume)` / `set_master_volume(midi_volume)`
-    (MIDI CC#7, real-time, no restart)
-  - `loop_state`, `is_loop_enabled`, `loop_time_range` (read-only A/B loop state)
-- `GTPPlayer` now calls these methods instead of reaching into
-  `engine._synth`, `engine._lock`, and `engine._loop_*`. The `hasattr`-based
-  guard that masked real errors has been removed.
-
-### Instrument Auto-Inference (GP3-5)
-- `GTPParser` infers the MIDI program from the track name when the file leaves
-  the instrument at PyGuitarPro's default (steel acoustic guitar, program 25).
-  Mapping (`NAME_BASED_INSTRUMENT_MAP`): Nylon Guitar -> 24, Acoustic/Steel
-  Guitar -> 25, Overdriven Guitar -> 29, Piano/Keyboard -> 0. Drum tracks
-  (`DRUM_KEYWORDS`) are skipped so their percussion mapping is preserved.
-
-### GPIF Parsing and Bend Style
-- `BendData` gains a `bend_style: BendStyle` field (uses the existing
-  `BendStyle` enum) so bend rendering can vary curve shape by style.
-- GPIF voice handling fixed: invalid voice slots (`-1`) no longer each emit an
-  empty rest beat. Previously `<Voices>0 -1 -1 -1</Voices>` injected three extra
-  rests and overflowed the measure (e.g. 7 quarter beats in 4/4). A single
-  placeholder rest is now added only when every voice in a bar is invalid.
+### Dynamic Attribute Handling
+- The render-time `_parent_beat` reference is now assigned via `setattr` and
+  read via `getattr(note, '_parent_beat', None)` in `_draw_slide_line` and
+  `_draw_hammer_on_arc`. This avoids the mypy `attr-defined` error without
+  polluting the `GTPNote` dataclass with a render-only field, while a
+  targeted `# noqa: B010` keeps ruff happy.
 
 ---
 
-## Bug Fixes
+## Examples
 
-### Metronome Freeze When Enabled Mid-Playback
-- Enabling the metronome during playback previously froze audio for up to ~30
-  seconds because the metronome thread iterated every past event to skip them.
-- `load_metronome_events` now accepts a `start_index` argument.
-  `GTPPlayer._refresh_metronome` computes it with `bisect.bisect_right` over
-  event times so the thread begins iterating from the first upcoming event.
-- `_metronome_start_perf` is initialized to
-  `perf_counter() - start_offset_ms / 1000`, aligning the thread's `elapsed_ms`
-  with the song timeline so the first click sounds within milliseconds.
-
-### Playhead Jumping to the Next Measure Early
-- Per-beat tick accumulation used `int()` truncation (e.g. triplet
-  `int(480 * 0.3333) = 159`), so a measure's beats summed to fewer ticks than
-  its time signature required. The next measure therefore started early, while
-  the last note was still sounding.
-- After each measure, `current_time_ticks` is now aligned to
-  `measure_start_ticks + measure_ticks` so the next measure's first beat
-  matches the MIDI event grid.
-- A **sentinel timeline entry** is appended at the last beat's end time
-  (clamped just before the measure boundary). The playhead now holds at the
-  last beat during the final note's sustain, then smoothly scrolls to the next
-  measure during the gap. The monotonic-`scroll_y` post-processing skips
-  sentinel entries so their shared position is preserved.
-
-### Pause/Resume Restarted Playback from the Beginning
-- `pause()` previously set `_is_paused = True` before reading
-  `current_time_ms`; the property then returned the stale `_current_time_ms`
-  (`0`), so the paused position was lost.
-- `pause()` now captures `current_time_ms` first, then freezes it.
-- `resume()` recomputes `_start_time` so that `elapsed` continues from the
-  paused position rather than resetting toward `_initial_time_offset`.
-- `_wait_until` no longer resets `_start_time` on resume, which had overwritten
-  the correction above and snapped playback back to the start.
-- Pause now affects only the main MIDI stream; the metronome thread keeps its
-  own time base so users can continue practicing against the click while the
-  song is paused.
-
-### Documentation
-- Docstring corrections across modules.
+The three example scripts gained return-type annotations:
+- `examples/basic_parse.py` — `main() -> None`, `format_tuning(tuple[int, ...]) -> str`
+- `examples/render_tab.py` — `main() -> None`, `batch_render(...) -> None`
+- `examples/audio_playback.py` — `main() -> None`, `show_progress(...) -> None`
 
 ---
 
 ## Maintenance
 
-### Minimum Python Version Raised to 3.11
-- `pyproject.toml` `requires-python` and `[tool.mypy] python_version` moved to
-  3.11. All module header comments updated from `Python 3.8+` to `Python 3.11+`.
-- README badges and compatibility lines updated accordingly.
-
-### License and Metadata Corrections
-- README license references corrected to **LGPL-2.1** (previously mixed
-  LGPL-2.0 / MPL-2.0).
-- pyguitarpro upstream URL updated to `Perlence/PyGuitarPro`.
-
-### Housekeeping
-- `.gitignore` updated; Python `__pycache__` artifacts cleaned from the tree.
+- Version bumped from `1.4.0` to `1.5.0` in `pyproject.toml` and
+  `ApolloTab/__init__.py`.
+- `readme/功能更新.md` records the v1.5.0 changelog.
 
 ---
 
-## Tests
+## Verification
 
-Three new test modules live under `ApolloTab/tests/`:
-- **`test_chord.py`** - `Chord` dataclass, `_chord_note_name` accidental
-  mapping, `_build_chord_from_xml` across major/minor/dim/aug/sus4/6/7/9/13
-  and slash chords, priority suppression rules, and `GpifParser` end-to-end
-  attachment of chords to beats.
-- **`test_chord_gp3.py`** - `_pitch_class_to_name` sharp/flat resolution,
-  `_convert_gp3_chord` structured-field mapping with defensive null checks
-  and name-mismatch fallback, plus end-to-end parsing of a real GP3 file.
-- **`test_chord_renderer.py`** - `_first_chord_in_sequence` deduplication
-  edge cases and `_draw_chord_names` no-op/crash safety, with Qt forced to
-  the `offscreen` platform for CI friendliness.
+- `mypy` — Success: no issues found (1 source file).
+- `ruff check` / `ruff format --check` — all green.
+- `pytest` — 305 passed, 6 skipped (coverage 57.11%, above the 40% gate).
+  The 6 skips are pre-existing platform limitations (Qt offscreen on
+  macOS/Windows, missing `.gp3` samples), not regressions.
 
 ---
 
 ## Dependencies
 
-No changes to runtime dependencies (`pyguitarpro>=0.10.1`, `pyfluidsynth>=1.4.0`).
-PyQt5 remains an optional, non-pip dependency (install via system package
-manager on ARM and create symlinks manually).
+No runtime dependency changes. `PyQt5-stubs` is a dev-only addition.

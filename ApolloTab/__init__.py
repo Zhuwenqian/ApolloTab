@@ -79,7 +79,7 @@ from .utils import (
     get_string_name,
 )
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 __all__ = [
     # ===== 高级API（推荐）=====
     'GTPPlayer',  # 高级播放器封装类（整合所有GTP功能）

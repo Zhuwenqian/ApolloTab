@@ -6,6 +6,7 @@ pytest>=7.0
 pytest-cov>=4.0
 ruff>=0.6
 mypy>=1.0
+PyQt5-stubs>=5.15.6.0
 build>=0.10
 twine>=4.0
 

@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from ApolloTab import SynthEngine
 
 
-def main():
+def main() -> None:
     """主函数 - 解析并播放GTP文件"""
 
     # ===== 参数检查 =====
@@ -255,7 +255,7 @@ def main():
         print("\n感谢使用 gtp-engine!")
 
 
-def show_progress(engine: SynthEngine, stop_event: threading.Event):
+def show_progress(engine: SynthEngine, stop_event: threading.Event) -> None:
     """
     在后台线程中显示播放进度条
 

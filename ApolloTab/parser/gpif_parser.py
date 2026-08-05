@@ -81,7 +81,7 @@ _CHORD_ACCIDENTAL_MAP: dict[str, str] = {
 class _GpifRhythm:
     """GPIF Rhythm 元素的临时存储结构（解析阶段使用）"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.rhythm_id: str = ''
         self.dots: int = 0  # 附点数量(0/1/2)
         self.tuplet_numerator: int = -1  # 连音分子(-1=无)
@@ -90,9 +90,9 @@ class _GpifRhythm:
 
 
 class _GpifSound:
-    """GPIF Sound 元素的临时存储结构（仅用于 MIDI 编号提取）"""
+    """GPIF Sound 元素的临时存储结构（用于 MIDI 编号提取）"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.program: int = 0  # MIDI Program Change
         self.bank: int = 0  # MIDI Bank
 
@@ -290,8 +290,12 @@ class GpifParser:
       3. _build_model() 第二遍: 按 ID 引用组装 GTPSong
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化解析器，准备各 ID 映射表"""
+        self._reset_state()
+
+    def _reset_state(self) -> None:
+        """重置所有 ID 映射表（供 __init__ 与 parse_xml 复用，避免重复调用 __init__）"""
         # 解析结果
         self._song: GTPSong | None = None
 
@@ -344,7 +348,7 @@ class GpifParser:
           4. 第二遍 _build_model: 按 ID 组装 GTPSong 模型
         """
         # 重置映射表（防止多次调用累积）
-        self.__init__()
+        self._reset_state()
 
         # 解析 XML
         try:
@@ -379,6 +383,8 @@ class GpifParser:
         参数:
             root: GPIF XML 根元素
         """
+        # parse_xml 调用本方法前已初始化 self._song，此处断言以辅助类型检查
+        assert self._song is not None
         for child in root:
             tag = child.tag
             if tag == 'GPVersion':
@@ -465,6 +471,8 @@ class GpifParser:
           Notices      → song.notices
           ScoreSystemsDefaultLayout → song.default_systems_layout
         """
+        # 调用前 self._song 已由 parse_xml 初始化
+        assert self._song is not None
         for c in node:
             tag = c.tag
             text = (c.text or '').strip() if c.text else ''
@@ -845,7 +853,7 @@ class GpifParser:
           Directions:        跳转方向(DaCapo/DalSegno/Coda/Fine)
         """
         # MasterBar 属性字典(用于第二遍组装)
-        mb_data = {
+        mb_data: dict[str, Any] = {
             'time_signature': (4, 4),
             'key_signature': 0,
             'is_repeat_open': False,
@@ -949,7 +957,7 @@ class GpifParser:
           Ottavia: 八度移调
         """
         bar_id = node.get('id', '')
-        bar_data = {
+        bar_data: dict[str, Any] = {
             'voice_ids': [],
             'clef': 'G2',
             'ottava': None,
@@ -1537,6 +1545,8 @@ class GpifParser:
           - 非打击乐: note.percussion_articulation=-1
           - 空 Voice(-1 ID) 创建空拍保持小节结构
         """
+        # 调用前 self._song 已由 parse_xml 初始化
+        assert self._song is not None
         # === Step 1: 设置全局信息 ===
         self._song.tempo = self._master_tempo
         self._song.tempo_name = self._master_tempo_name

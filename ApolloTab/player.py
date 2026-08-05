@@ -62,6 +62,7 @@
 
 import bisect
 from collections.abc import Callable
+from typing import Any
 
 from PyQt5.QtCore import QRect, Qt
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen, QPixmap
@@ -272,7 +273,7 @@ class GTPPlayer:
         self._current_track = 0
         return self._song
 
-    def get_track_info(self, track_index: int = None) -> dict:
+    def get_track_info(self, track_index: int | None = None) -> dict:
         """
         获取指定音轨的详细信息
 
@@ -332,7 +333,9 @@ class GTPPlayer:
     # 渲染功能
     # ================================================================
 
-    def render_track(self, track_index: int = None, config: RenderConfig = None) -> list[QPixmap]:
+    def render_track(
+        self, track_index: int | None = None, config: RenderConfig | None = None
+    ) -> list[QPixmap]:
         """
         渲染指定音轨的六线谱图像
 
@@ -368,7 +371,10 @@ class GTPPlayer:
         return pixmaps
 
     def render_from_song(
-        self, song: GTPSong = None, track_index: int = None, config: RenderConfig = None
+        self,
+        song: GTPSong | None = None,
+        track_index: int | None = None,
+        config: RenderConfig | None = None,
     ) -> list[QPixmap]:
         """
         从已有的 GTPSong 对象渲染（不重新解析文件）
@@ -408,7 +414,7 @@ class GTPPlayer:
     # 主题管理
     # ================================================================
 
-    def set_theme(self, theme) -> None:
+    def set_theme(self, theme: Any) -> None:
         """
         切换渲染主题（委托给内部渲染器）
 
@@ -498,7 +504,7 @@ class GTPPlayer:
     # 音频引擎管理
     # ================================================================
 
-    def init_audio(self, note_callback: Callable = None) -> bool:
+    def init_audio(self, note_callback: Callable | None = None) -> bool:
         """
         初始化音频播放引擎
 
@@ -552,7 +558,7 @@ class GTPPlayer:
 
             # === Step 4: 设置音符回调 ===
             self._note_callback = note_callback
-            if note_callback:
+            if note_callback is not None:
                 self._synth_engine.set_note_callback(note_callback)
 
             # === Step 5: 转换并加载 MIDI 事件 ===
@@ -721,7 +727,7 @@ class GTPPlayer:
     # [v1.1.3] 节拍器控制
     # ================================================================
 
-    def set_metronome(self, enabled: bool, volume: float, gain: float = None) -> None:
+    def set_metronome(self, enabled: bool, volume: float, gain: float | None = None) -> None:
         """
         设置节拍器开关、音量与全局增益
 
@@ -1085,7 +1091,7 @@ class GTPPlayer:
         # 旧代码用meas_idx做key，但meas_idx在每个系统(System/行)内从0重新计数，
         # 导致不同系统的同名小节(如都是小节0)被合并到同一个key下 → 循环设置错误
         # 新方案: global_meas_idx在build_timeline中递增，跨系统/页全局唯一
-        measure_entries = {}  # global_meas_idx -> [entries]
+        measure_entries: dict[int, list[dict]] = {}  # global_meas_idx -> [entries]
         for entry in self._playhead_timeline:
             g_idx = entry.get('global_meas_idx', -1)
             if g_idx >= 0:
@@ -1669,7 +1675,7 @@ class GTPPlayer:
             if has_expansion and self._playhead_timeline:
                 # Step 1: 建立 measure.number → global_meas_idx 映射
                 # (GTPMeasure.number 是1-based序号, 与track.measures列表索引+1对应)
-                num_to_global = {}
+                num_to_global: dict[int, int] = {}
                 for entry in self._playhead_timeline:
                     gidx = entry.get('global_meas_idx', -1)
                     entry.get('meas_idx', -1)  # 系统内局部索引(暂时用)
@@ -1682,7 +1688,7 @@ class GTPPlayer:
                 idx_to_global = {i: i for i, _m in enumerate(track.measures)}
 
                 # Step 2: 按 global_meas_idx 分组时间线条目
-                groups = {}  # global_meas_idx -> [entries]
+                groups: dict[int, list[dict]] = {}  # global_meas_idx -> [entries]
                 for entry in self._playhead_timeline:
                     gidx = entry.get('global_meas_idx', -1)
                     groups.setdefault(gidx, []).append(entry)
@@ -1753,7 +1759,7 @@ class GTPPlayer:
     # 时间 ↔ 位置 双向映射
     # ================================================================
 
-    def update_playhead(self, time_ms: float = None) -> tuple | None:
+    def update_playhead(self, time_ms: float | None = None) -> tuple | None:
         """
         根据当前播放时间更新光标位置
 
@@ -1871,7 +1877,7 @@ class GTPPlayer:
         # 映射到显示区域(减去可视区域高度的一半，让光标居中)
         centered_pos = max(0, scroll_y - display_height / 2)
 
-        return min(centered_pos, float(total_scroll_distance))
+        return float(min(centered_pos, float(total_scroll_distance)))
 
     def scroll_pos_to_time(
         self, scroll_pos: float, total_scroll_distance: float, display_height: int
@@ -1914,21 +1920,21 @@ class GTPPlayer:
         idx = bisect.bisect_right(self._timeline_scroll_ys, raw_scroll_y) - 1
 
         if idx < 0:
-            return self._playhead_timeline[0]['time_ms']
+            return float(self._playhead_timeline[0]['time_ms'])
         if idx >= len(self._playhead_timeline) - 1:
-            return self._playhead_timeline[-1]['time_ms']
+            return float(self._playhead_timeline[-1]['time_ms'])
 
         # 线性插值(与time_to_scroll_pos对称)
         curr = self._playhead_timeline[idx]
         next_e = self._playhead_timeline[idx + 1]
         dy = next_e['scroll_y'] - curr['scroll_y']
         if dy <= 0:
-            return curr['time_ms']
+            return float(curr['time_ms'])
 
         t = (raw_scroll_y - curr['scroll_y']) / dy
         time_ms = curr['time_ms'] + t * (next_e['time_ms'] - curr['time_ms'])
 
-        return max(0.0, time_ms)
+        return float(max(0.0, time_ms))
 
     # ================================================================
     # 工具方法
@@ -1980,7 +1986,7 @@ class GTPPlayer:
 
         return pixmap
 
-    def __del__(self):
+    def __del__(self) -> None:
         """析构时确保释放音频资源"""
         self.shutdown()
 
@@ -2010,7 +2016,7 @@ def create_gtp_player(gain: float = 0.7) -> GTPPlayer:
 
 
 def render_gtp_to_images(
-    file_path: str, track_index: int = 0, config: RenderConfig = None
+    file_path: str, track_index: int = 0, config: RenderConfig | None = None
 ) -> list[QPixmap]:
     """
     便捷函数：一键渲染GTP文件为图像列表

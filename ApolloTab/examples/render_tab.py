@@ -36,7 +36,7 @@ import os
 import sys
 
 
-def main():
+def main() -> None:
     """主函数 - 渲染GTP文件为图像"""
 
     # ===== 参数检查 =====
@@ -189,7 +189,7 @@ def main():
     print(f"\n{'=' * 60}")
 
 
-def batch_render(input_dir: str, output_dir: str = "./rendered"):
+def batch_render(input_dir: str, output_dir: str = "./rendered") -> None:
     """
     批量渲染目录下的所有GTP文件
 

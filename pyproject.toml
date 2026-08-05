@@ -13,7 +13,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ApolloTab"
-version = "1.4.0"
+version = "1.5.0"
 description = "Guitar Pro file parsing, rendering, and audio playback engine library"
 readme = "README.md"
 license = "LGPL-2.1"
@@ -159,7 +159,8 @@ no_implicit_optional = true   # mypy 2.x 默认已开, 显式声明
 
 # 无 py.typed 的第三方依赖: 忽略缺失 stub
 # - guitarpro (pyguitarpro) / fluidsynth (pyfluidsynth): 无官方 stub
-# - numpy: 新版自带 stub 用 Py3.12 type 语句, 在 3.11 target 报 syntax 错
+#   注: guitarpro 子模块(guitarpro.*)与 numpy 在当前检查链中未被导入,
+#       故不列入(避免 warn_unused_configs 误报); 如未来导入新第三方库可追加
 [[tool.mypy.overrides]]
-module = ["guitarpro", "guitarpro.*", "fluidsynth", "numpy", "numpy.*"]
+module = ["guitarpro", "fluidsynth"]
 ignore_missing_imports = true

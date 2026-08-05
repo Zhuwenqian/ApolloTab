@@ -42,7 +42,7 @@ import os
 import sys
 
 
-def main():
+def main() -> None:
     """主函数 - 解析并显示GTP文件信息"""
 
     # ===== 参数检查 =====
@@ -180,7 +180,7 @@ def main():
     print("=" * 50)
 
 
-def format_tuning(tuning: tuple) -> str:
+def format_tuning(tuning: tuple[int, ...]) -> str:
     """
     将MIDI音高元组格式化为可读的调弦字符串
 

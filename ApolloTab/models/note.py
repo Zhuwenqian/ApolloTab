@@ -17,7 +17,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ..utils.constants import BendStyle, NoteDuration, TechniqueType
+from ..utils.constants import BendStyle, BendType, NoteDuration, TechniqueType, VibratoType
 
 
 @dataclass
@@ -26,7 +26,7 @@ class BendData:
     推弦(Bend)详细数据 - 存储从GTP文件解析的完整推弦信息
 
     属性说明:
-      bend_type:    推弦类型 ('bend'=普通推弦, 'bendRelease'=推弦+释放)
+      bend_type:    推弦类型 (BendType枚举 或 字符串: 'bend'=普通推弦, 'bendRelease'=推弦+释放)
       value:        推弦量(四分之一音为单位): 25=1/4, 50=1/2, 75=3/4, 100=Full
       max_value:    推弦峰值(四分之一音为单位)
       points:       曲线点列表 [(position, value), ...]
@@ -37,7 +37,7 @@ class BendData:
     调用来源: guitarpro库的BendEffect对象 (开源项目 guitarpro)
     """
 
-    bend_type: str = "bend"  # 推弦类型
+    bend_type: BendType | str = "bend"  # 推弦类型(GP7/GP8传BendType枚举, GP3-5传str)
     bend_style: BendStyle = BendStyle.DEFAULT  # 推弦风格(影响渲染曲线弧度)
     value: int = 0  # 推弦量
     max_value: int = 0  # 峰值
@@ -146,6 +146,7 @@ class GTPNote:
     right_hand_finger: int = 0  # 右手指法: 同上
     percussion_articulation: int = -1  # 打击乐编号 (非打击乐为-1)
     is_percussion: bool = False  # 是否打击乐音符
+    vibrato: VibratoType | None = None  # 揉弦类型 (GP7/GP8 Slight/Wide, 供MIDI合成正弦波揉弦)
 
     def get_display_fret(self) -> str:
         """
