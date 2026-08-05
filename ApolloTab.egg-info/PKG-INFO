@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: ApolloTab
-Version: 1.3.1
+Version: 1.3.2
 Summary: Guitar Pro file parsing, rendering, and audio playback engine library
 Author: ZhuWenqian
 Maintainer: ZhuWenqian
@@ -14,15 +14,13 @@ Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.8
-Classifier: Programming Language :: Python :: 3.9
-Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
 Classifier: Topic :: Multimedia :: Sound/Audio :: MIDI
 Classifier: Topic :: Multimedia :: Graphics
 Classifier: Typing :: Typed
-Requires-Python: >=3.8
+Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: pyguitarpro>=0.10.1
@@ -311,7 +309,10 @@ pages = renderer.render(song, track_index=0)
 **Usage**:
 
 ```python
-from ApolloTab.audio import MidiConverter, SynthEngine, MetronomeConfig
+from ApolloTab.audio import (
+    MidiConverter, SynthEngine,
+    MetronomeConfig, MetronomeGenerator,
+)
 
 converter = MidiConverter()
 events = converter.convert(song, track_index=0)
@@ -319,13 +320,23 @@ events = converter.convert(song, track_index=0)
 engine = SynthEngine()
 engine.initialize()
 engine.load_soundfont()
-engine.load_events(events, bpm=120)
+engine.load_events(events, bpm=120)  # main events only (no metronome mixed in)
 engine.play()
 
-# With metronome
-config = MetronomeConfig(enabled=True, volume=0.8)
-events_with_metronome = converter.convert(song, track_index=0, metronome_config=config)
-engine.load_events(events_with_metronome, bpm=song.tempo)
+# [v1.4.0] Metronome events are loaded independently and played on a separate
+# thread, no longer mixed into the main event stream. Toggling metronome on/off
+# or changing volume no longer requires rebuilding the main MIDI events.
+config = MetronomeConfig(enabled=True, volume=0.8, gain=1.5)
+ticks_per_beat = 480
+metro_events = MetronomeGenerator.generate_for_song(
+    song=song, track_index=0, config=config,
+    expanded_indices=converter.expand_measure_indices(song.tracks[0].measures),
+    ticks_per_beat=ticks_per_beat,
+)
+engine.load_metronome_events(
+    events=metro_events, bpm=120, ticks_per_beat=ticks_per_beat,
+)
+# To stop: engine.unload_metronome_events()
 ```
 
 #### Utilities (`ApolloTab.utils`)
@@ -504,7 +515,7 @@ mypy ApolloTab/
 
 | Package                                                    | Version  | Purpose                   | License  |
 | ---------------------------------------------------------- | -------- | ------------------------- | -------- |
-| [pyguitarpro](https://github.com/ozono/guitarpro)          | >=0.10.1 | Guitar Pro file parsing   | LGPL-3.0 |
+| [pyguitarpro](https://github.com/Perlence/PyGuitarPro)      | >=0.10.1 | Guitar Pro file parsing   | LGPL-3.0 |
 | [pyfluidsynth](https://github.com/nwhitehead/pyfluidsynth) | >=1.4.0  | FluidSynth Python binding | LGPL-2.1 |
 
 > **Note**: PyQt5 is no longer a pip dependency. On ARM architectures, install it via `apt` and create symlinks manually. The rendering engine will use it if available at runtime.
@@ -532,7 +543,7 @@ Issues and Pull Requests are welcome!
 ## Related Projects
 
 - **[TAB Score Viewer](https://github.com/Zhuwenqian/tab-score-viewer)** - Complete guitar tab viewer app built on ApolloTab
-- **[pyguitarpro](https://github.com/ozono/guitarpro)** - Underlying library for Guitar Pro file parsing
+- **[pyguitarpro](https://github.com/Perlence/PyGuitarPro)** - Underlying library for Guitar Pro file parsing
 - **[FluidSynth](https://github.com/FluidSynth/fluidsynth)** - Real-time MIDI synthesis engine
 
 ***
@@ -548,7 +559,7 @@ Issues and Pull Requests are welcome!
 # ApolloTab（中文）
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-orange.svg)](https://opensource.org/licenses/MPL-2.0/)
+[![License: LGPL 2.1](https://img.shields.io/badge/License-LGPL_2.1-orange.svg)](https://opensource.org/licenses/LGPL-2.1/)
 [![PyPI version](https://badge.fury.io/py/ApolloTab.svg)](https://pypi.org/project/ApolloTab/)
 
 **Guitar Pro 文件解析、渲染与音频播放引擎库**
@@ -832,20 +843,33 @@ pages = renderer.render(song, track_index=0)
 **用法**:
 
 ```python
-from ApolloTab.audio import MidiConverter, SynthEngine, MetronomeConfig
+from ApolloTab.audio import (
+    MidiConverter, SynthEngine,
+    MetronomeConfig, MetronomeGenerator,
+)
 
 converter = MidiConverter()
 events = converter.convert(song, track_index=0)
 
-# 带节拍器
-config = MetronomeConfig(enabled=True, volume=0.8)
-events_with_metronome = converter.convert(song, track_index=0, metronome_config=config)
-
 engine = SynthEngine()
 engine.initialize()
 engine.load_soundfont()
-engine.load_events(events, bpm=120)
+engine.load_events(events, bpm=song.tempo)  # 主事件流（不再混入节拍器）
 engine.play()
+
+# [v1.4.0] 节拍器事件独立加载：通过独立线程播放，不与主事件流混合
+# 切换节拍器开关/音量时无需重建主事件
+config = MetronomeConfig(enabled=True, volume=0.8, gain=1.5)
+ticks_per_beat = 480
+metro_events = MetronomeGenerator.generate_for_song(
+    song=song, track_index=0, config=config,
+    expanded_indices=converter.expand_measure_indices(song.tracks[0].measures),
+    ticks_per_beat=ticks_per_beat,
+)
+engine.load_metronome_events(
+    events=metro_events, bpm=song.tempo, ticks_per_beat=ticks_per_beat,
+)
+# 关闭：engine.unload_metronome_events()
 ```
 
 #### 工具 (`ApolloTab.utils`)
@@ -1043,7 +1067,7 @@ mypy ApolloTab/
 
 ## 许可证
 
-本项目采用 [LGPL 2.0](LICENSE) 开源协议。
+本项目采用 [LGPL 2.1](LICENSE) 开源协议。
 
 ## 贡献
 

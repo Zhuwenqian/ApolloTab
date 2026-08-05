@@ -2,8 +2,8 @@
 # 用途: 指定打包时应包含的非Python文件
 
 # 包含 README 和 LICENSE
-include ApolloTab/README.md
-include ApolloTab/LICENSE
+include README.md
+include LICENSE
 
 # 包含类型提示标记
 include ApolloTab/py.typed
