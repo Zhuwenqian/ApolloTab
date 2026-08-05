@@ -13,7 +13,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ApolloTab"
-version = "1.3.2"
+version = "1.4.0"
 description = "Guitar Pro file parsing, rendering, and audio playback engine library"
 readme = "README.md"
 license = "LGPL-2.1"
