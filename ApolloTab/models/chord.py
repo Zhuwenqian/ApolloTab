@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: chord.py
@@ -56,8 +55,9 @@ class Chord:
         chord = Chord(key="G", bass="B", suffix="", extensions="")
         print(chord.name)  # "G/B"
     """
+
     key: str
-    bass: Optional[str] = None
+    bass: str | None = None
     suffix: str = ""
     extensions: str = ""
 

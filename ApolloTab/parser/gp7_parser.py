@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: gp7_parser.py
@@ -35,14 +34,13 @@ import io
 import zipfile
 from typing import Optional
 
-# 导入子解析器
-from .gpif_parser import GpifParser
-from .binary_stylesheet import BinaryStylesheet
-from .part_configuration import PartConfiguration
-
 # 导入数据模型
 from ..models.song import GTPSong
+from .binary_stylesheet import BinaryStylesheet
 
+# 导入子解析器
+from .gpif_parser import GpifParser
+from .part_configuration import PartConfiguration
 
 # ZIP 包内文件路径常量(使用正斜杠，跨平台兼容)
 _PATH_VERSION = 'VERSION'

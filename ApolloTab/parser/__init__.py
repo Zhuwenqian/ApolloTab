@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: parser/__init__.py
@@ -14,16 +13,15 @@
 import os
 from typing import Optional
 
-from .gtp_parser import GTPParser, parse_gtp
+from .binary_stylesheet import BinaryStylesheet
 from .gp7_parser import GP7Parser
 from .gpif_parser import GpifParser
-from .binary_stylesheet import BinaryStylesheet
+from .gtp_parser import GTPParser, parse_gtp
 from .part_configuration import PartConfiguration
-
 
 # 支持的文件扩展名(统一管理)
 GP3_5_EXTENSIONS = ('.gp3', '.gp4', '.gp5', '.gpx', '.gtp')  # GP3-5(PyGuitarPro 解析)
-GP7_8_EXTENSIONS = ('.gp',)                                   # GP7/GP8(原生解析)
+GP7_8_EXTENSIONS = ('.gp',)  # GP7/GP8(原生解析)
 ALL_SUPPORTED_EXTENSIONS = GP3_5_EXTENSIONS + GP7_8_EXTENSIONS
 
 
@@ -67,8 +65,7 @@ def parse_score(file_path: str):
         return parse_gtp(file_path)
     else:
         raise ValueError(
-            f"不支持的文件扩展名: {ext} "
-            f"(支持的扩展名: {', '.join(ALL_SUPPORTED_EXTENSIONS)})"
+            f"不支持的文件扩展名: {ext} (支持的扩展名: {', '.join(ALL_SUPPORTED_EXTENSIONS)})"
         )
 
 
@@ -92,13 +89,19 @@ def parse_gp7(file_path: str):
 
 __all__ = [
     # GP3-5 解析器
-    'GTPParser', 'parse_gtp',
+    'GTPParser',
+    'parse_gtp',
     # GP7/GP8 解析器
-    'GP7Parser', 'GpifParser', 'parse_gp7',
+    'GP7Parser',
+    'GpifParser',
+    'parse_gp7',
     # 二进制配置解析器
-    'BinaryStylesheet', 'PartConfiguration',
+    'BinaryStylesheet',
+    'PartConfiguration',
     # 智能调度函数(推荐入口)
     'parse_score',
     # 扩展名常量
-    'GP3_5_EXTENSIONS', 'GP7_8_EXTENSIONS', 'ALL_SUPPORTED_EXTENSIONS',
+    'GP3_5_EXTENSIONS',
+    'GP7_8_EXTENSIONS',
+    'ALL_SUPPORTED_EXTENSIONS',
 ]

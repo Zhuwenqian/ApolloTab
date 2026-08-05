@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: midi_converter.py
@@ -69,7 +68,7 @@ from ..utils.constants import TechniqueType
 class MidiEvent:
     """
     单个 MIDI 事件的数据模型
-    
+
     属性说明:
       time:     绝对时间位置(tick单位, 从歌曲开头开始累加)
       type:     事件类型 ('note_on'|'note_off'|'tempo'|'pitch_bend'|'program_change'|'control_change')
@@ -78,55 +77,56 @@ class MidiEvent:
                 control_change时为控制器号(CC#); program_change时为乐器号
       velocity: 力度/击弦强度(0-127), note_off时为0; control_change时为控制器值
       value:    附加值(tempo事件用, BPM值)
-    
+
     调用来源: MidiConverter.convert() 生成的所有MIDI事件
     """
-    time: int = 0                    # 绝对时间位置(tick)
-    type: str = "note_on"            # 事件类型 (note_on/note_off/tempo/pitch_bend)
-    channel: int = 0                 # MIDI通道
-    pitch: int = 0                   # MIDI音高 (或pitch_bend值)
-    velocity: int = 0                # 力度
-    value: int = 0                   # 附加值(BPM等)
+
+    time: int = 0  # 绝对时间位置(tick)
+    type: str = "note_on"  # 事件类型 (note_on/note_off/tempo/pitch_bend)
+    channel: int = 0  # MIDI通道
+    pitch: int = 0  # MIDI音高 (或pitch_bend值)
+    velocity: int = 0  # 力度
+    value: int = 0  # 附加值(BPM等)
 
 
 class MidiConverter:
     """
     GTP歌曲 → MIDI事件序列转换器
-    
+
     功能:
       将 GTPSong 数据模型转换为按时间排序的 MIDI 事件列表。
       每个音符生成一对 note_on + note_off 事件，
       并在开头插入 tempo 事件设置播放速度。
-    
+
     时间计算原理:
       - 使用 tick 作为内部时间单位（类似 MIDI 文件的 ticks-per-beat）
       - ticks_per_beat 默认为 480（MIDI 标准分辨率）
       - 每个 Beat 的时长 = (ticks_per_beat) × (四分音符基准 / 时值比例)
       - 附点音符时长 × 1.5
-    
+
     力度处理:
       - 正常音符: 使用 note.velocity (默认95=mf中强)
       - 幽灵音(Ghost Note): 力度降低到 60 (pp-弱)
       - 断奏(Staccato): 时值缩短50%，力度不变
-    
+
     参数说明:
       ticks_per_beat: 每个四分音符的tick数，调整效果:
                        越大则时间精度越高(推荐480/960)，越小计算越快
     """
-    
+
     # MIDI 标准分辨率：每四分音符的 tick 数
     TICKS_PER_BEAT = 480  # 调整效果: 标准 MIDI 分辨率，足够精确
-    
+
     # 吉他音色 MIDI 通道映射
-    GUITAR_CHANNEL = 0    # 主吉他轨道使用通道0
-    
+    GUITAR_CHANNEL = 0  # 主吉他轨道使用通道0
+
     # 多轨并轨时每轨分配的起始通道号（最多支持16个音轨，通道0-15）
     MULTI_TRACK_START_CHANNEL = 0
-    
+
     # MIDI标准中通道9(第10通道)是打击乐/鼓组保留通道，不能用于旋律乐器
     # 多轨并轨时自动跳过此通道（非鼓轨）
     PERCUSSION_CHANNEL = 9
-    
+
     # GM标准鼓音映射范围: MIDI note 35-81 对应不同鼓/镲音色
     # 常用值: 36=底鼓, 38/40=军鼓, 42=闭镲, 44=开镲, 49=碎镲, 51=吊镲
     DRUM_NOTE_RANGE = (35, 82)
@@ -138,21 +138,21 @@ class MidiConverter:
     # 调整效果: 修改此表可改变 GP7/GP8 文件的力度解析基准值
     # 来源: alphaTab Dynamic 枚举值 (与 GP7/GP8 GPIF XML <Dynamic> 节点对应)
     DYNAMICS_TO_VELOCITY = {
-        'PPP': 15,   # pianississimo (极弱) - 几乎无声
-        'PP': 31,    # pianissimo (很弱)
-        'P': 47,     # piano (弱)
-        'MP': 63,    # mezzo-piano (中弱)
-        'MF': 79,    # mezzo-forte (中强) - 默认力度
-        'F': 95,     # forte (强)
-        'FF': 111,   # fortissimo (很强)
+        'PPP': 15,  # pianississimo (极弱) - 几乎无声
+        'PP': 31,  # pianissimo (很弱)
+        'P': 47,  # piano (弱)
+        'MP': 63,  # mezzo-piano (中弱)
+        'MF': 79,  # mezzo-forte (中强) - 默认力度
+        'F': 95,  # forte (强)
+        'FF': 111,  # fortissimo (很强)
         'FFF': 127,  # fortississimo (极强) - 最大力度
     }
 
     # GP7/GP8 重音类型常量 (v0.4.1 新增)
     # 来源: alphaTab AccentType 枚举 (GP7 GPIF <Accent> 节点 bit flag)
-    ACCENT_NORMAL = 1   # 普通重音 (Normal Accent) → 力度 +15
-    ACCENT_HEAVY = 2    # 强重音 (Heavy Accent) → 力度 +25
-    
+    ACCENT_NORMAL = 1  # 普通重音 (Normal Accent) → 力度 +15
+    ACCENT_HEAVY = 2  # 强重音 (Heavy Accent) → 力度 +25
+
     def __init__(self, ticks_per_beat: int = None):
         """
         初始化转换器
@@ -167,7 +167,7 @@ class MidiConverter:
     # ================================================================
 
     @staticmethod
-    def expand_measure_indices(measures: list) -> List[int]:
+    def expand_measure_indices(measures: list) -> list[int]:
         """
         将带反复记号的小节列表展开为实际播放顺序的索引序列
 
@@ -202,8 +202,8 @@ class MidiConverter:
           - MidiConverter.convert_all_tracks(): 多轨并轨时使用
           - GTPPlayer.build_timeline(): 时间线构建时同步使用
         """
-        result: List[int] = []       # 展开后的索引序列
-        stack: List[int] = []         # 反复起点栈(存储result中的位置)
+        result: list[int] = []  # 展开后的索引序列
+        stack: list[int] = []  # 反复起点栈(存储result中的位置)
 
         for idx, measure in enumerate(measures):
             # === 步骤1: 将当前小节加入结果 ===
@@ -229,8 +229,8 @@ class MidiConverter:
                     result.extend(segment)
 
         return result
-    
-    def convert(self, song, track_index: int = 0) -> List[MidiEvent]:
+
+    def convert(self, song, track_index: int = 0) -> list[MidiEvent]:
         """
         将 GTPSong 的指定音轨转换为 MIDI 事件序列
 
@@ -253,7 +253,7 @@ class MidiConverter:
           5. 为每个非休止符音符生成 note_on + note_off 事件对
           6. 按时间排序返回完整事件列表
         """
-        events: List[MidiEvent] = []
+        events: list[MidiEvent] = []
 
         # === 参数验证 ===
         if not song or not song.tracks:
@@ -264,14 +264,16 @@ class MidiConverter:
         track = song.tracks[track_index]
 
         # === Step 1: 插入 tempo 事件(歌曲开头的速度标记) ===
-        events.append(MidiEvent(
-            time=0,
-            type="tempo",
-            channel=self.GUITAR_CHANNEL,
-            pitch=0,
-            velocity=song.tempo,
-            value=song.tempo
-        ))
+        events.append(
+            MidiEvent(
+                time=0,
+                type="tempo",
+                channel=self.GUITAR_CHANNEL,
+                pitch=0,
+                velocity=song.tempo,
+                value=song.tempo,
+            )
+        )
 
         # === [v1.0.1] Step 1.5: 插入音色事件(Bank Select + Program Change) ===
         # 单轨模式也使用 GUITAR_CHANNEL, 根据 track 实际类型发送鼓组或旋律音色
@@ -290,8 +292,10 @@ class MidiConverter:
         for orig_idx in expanded_indices:
             measure = track.measures[orig_idx]
             measure_events = self._convert_measure(
-                measure, current_tick, self.GUITAR_CHANNEL,
-                percussion_articulations=percussion_articulations
+                measure,
+                current_tick,
+                self.GUITAR_CHANNEL,
+                percussion_articulations=percussion_articulations,
             )
             events.extend(measure_events)
 
@@ -305,14 +309,22 @@ class MidiConverter:
         # === Step 6 (旧)/ Step 5 (新): 按 time 排序确保时序正确 ===
         # 同一时间的事件顺序: 控制/音色设置 → tempo → pitch_bend → note_on → note_off
         # 必须先发送 program_change, 再发送该时刻的音符
-        events.sort(key=lambda e: (
-            e.time,
-            {'control_change': 0, 'program_change': 1, 'tempo': 2,
-             'pitch_bend': 3, 'note_on': 4, 'note_off': 5}.get(e.type, 99)
-        ))
+        events.sort(
+            key=lambda e: (
+                e.time,
+                {
+                    'control_change': 0,
+                    'program_change': 1,
+                    'tempo': 2,
+                    'pitch_bend': 3,
+                    'note_on': 4,
+                    'note_off': 5,
+                }.get(e.type, 99),
+            )
+        )
 
         return events
-    
+
     @staticmethod
     def is_drum_track(track) -> bool:
         """
@@ -342,7 +354,7 @@ class MidiConverter:
         name_lower = track.name.lower()
         if any(kw in name_lower for kw in MidiConverter.DRUM_KEYWORDS):
             return True
-        
+
         # === 策略3: 音符特征检测 ===
         # 鼓轨关键特征: fret == midi_pitch (鼓音直接存为MIDI编号，非品格计算值)
         #              且 pitch 在 GM 鼓音范围(35-81)
@@ -357,20 +369,17 @@ class MidiConverter:
                     break
             if len(sample_notes) >= 20:
                 break
-        
+
         if len(sample_notes) >= 5:  # 至少5个音符才做特征判断
             lo, hi = MidiConverter.DRUM_NOTE_RANGE
             # 检查是否所有样本都满足: (1)在鼓音范围 (2)fret==pitch
-            all_drum_like = all(
-                lo <= p <= hi and f == p
-                for p, f in sample_notes
-            )
+            all_drum_like = all(lo <= p <= hi and f == p for p, f in sample_notes)
             if all_drum_like:
                 return True
-        
+
         return False
-    
-    def _create_program_events(self, track, channel: int) -> List[MidiEvent]:
+
+    def _create_program_events(self, track, channel: int) -> list[MidiEvent]:
         """
         创建音轨开头的音色设置事件(Bank Select + Program Change)
 
@@ -391,7 +400,7 @@ class MidiConverter:
         返回:
             音色事件列表, 按发送顺序排列, 时间均为 0
         """
-        events: List[MidiEvent] = []
+        events: list[MidiEvent] = []
 
         if self.is_drum_track(track):
             # === 鼓轨: 强制切换到打击乐 Bank 并选择鼓组 Program ===
@@ -400,30 +409,36 @@ class MidiConverter:
             # 注意: CC 值合法范围是 0-127, 直接发 128 会被 FluidSynth 忽略。
             # 必须先发 CC#0(MSB) + CC#32(LSB), 再发 Program Change。
             # 发送顺序: CC#0(MSB) → CC#32(LSB) → Program Change
-            events.append(MidiEvent(
-                time=0,
-                type='control_change',
-                channel=channel,
-                pitch=0,          # CC#0 = Bank Select MSB
-                velocity=1,       # 128 >> 7 = 1 (鼓组 Bank MSB)
-                value=0
-            ))
-            events.append(MidiEvent(
-                time=0,
-                type='control_change',
-                channel=channel,
-                pitch=32,         # CC#32 = Bank Select LSB
-                velocity=0,       # 128 & 0x7F = 0 (鼓组 Bank LSB)
-                value=0
-            ))
-            events.append(MidiEvent(
-                time=0,
-                type='program_change',
-                channel=channel,
-                pitch=0,          # Program 0 = Standard Drum Kit (GM 标准)
-                velocity=0,
-                value=0
-            ))
+            events.append(
+                MidiEvent(
+                    time=0,
+                    type='control_change',
+                    channel=channel,
+                    pitch=0,  # CC#0 = Bank Select MSB
+                    velocity=1,  # 128 >> 7 = 1 (鼓组 Bank MSB)
+                    value=0,
+                )
+            )
+            events.append(
+                MidiEvent(
+                    time=0,
+                    type='control_change',
+                    channel=channel,
+                    pitch=32,  # CC#32 = Bank Select LSB
+                    velocity=0,  # 128 & 0x7F = 0 (鼓组 Bank LSB)
+                    value=0,
+                )
+            )
+            events.append(
+                MidiEvent(
+                    time=0,
+                    type='program_change',
+                    channel=channel,
+                    pitch=0,  # Program 0 = Standard Drum Kit (GM 标准)
+                    velocity=0,
+                    value=0,
+                )
+            )
         else:
             # === 旋律轨: Bank Select (可选) + Program Change ===
             msb = getattr(track, 'midi_bank_msb', 0)
@@ -431,39 +446,45 @@ class MidiConverter:
 
             if msb != 0 or lsb != 0:
                 # CC#0 Bank Select MSB
-                events.append(MidiEvent(
-                    time=0,
-                    type='control_change',
-                    channel=channel,
-                    pitch=0,
-                    velocity=msb & 0x7F,
-                    value=0
-                ))
+                events.append(
+                    MidiEvent(
+                        time=0,
+                        type='control_change',
+                        channel=channel,
+                        pitch=0,
+                        velocity=msb & 0x7F,
+                        value=0,
+                    )
+                )
                 # CC#32 Bank Select LSB
-                events.append(MidiEvent(
-                    time=0,
-                    type='control_change',
-                    channel=channel,
-                    pitch=32,
-                    velocity=lsb & 0x7F,
-                    value=0
-                ))
+                events.append(
+                    MidiEvent(
+                        time=0,
+                        type='control_change',
+                        channel=channel,
+                        pitch=32,
+                        velocity=lsb & 0x7F,
+                        value=0,
+                    )
+                )
 
             # Program Change (乐器号)
             program = getattr(track, 'instrument', 0)
             if 0 <= program <= 127:
-                events.append(MidiEvent(
-                    time=0,
-                    type='program_change',
-                    channel=channel,
-                    pitch=program,
-                    velocity=0,
-                    value=0
-                ))
+                events.append(
+                    MidiEvent(
+                        time=0,
+                        type='program_change',
+                        channel=channel,
+                        pitch=program,
+                        velocity=0,
+                        value=0,
+                    )
+                )
 
         return events
-    
-    def convert_all_tracks(self, song) -> Tuple[List[MidiEvent], List[int]]:
+
+    def convert_all_tracks(self, song) -> tuple[list[MidiEvent], list[int]]:
         """
         转换歌曲所有音轨为合并的 MIDI 事件序列（并轨模式）
 
@@ -494,21 +515,16 @@ class MidiConverter:
         使用场景:
           全轨并轨播放模式 - 用户想听到完整乐队效果而非单轨独奏
         """
-        all_events: List[MidiEvent] = []
-        track_channels: List[int] = []
+        all_events: list[MidiEvent] = []
+        track_channels: list[int] = []
 
         if not song or not song.tracks:
             return all_events, track_channels
 
         # 只在开头插入一次 tempo 事件（避免重复）
-        all_events.append(MidiEvent(
-            time=0,
-            type="tempo",
-            channel=0,
-            pitch=0,
-            velocity=0,
-            value=song.tempo
-        ))
+        all_events.append(
+            MidiEvent(time=0, type="tempo", channel=0, pitch=0, velocity=0, value=song.tempo)
+        )
 
         # 遍历每个音轨，各自转换后合并
         # 通道分配规则:
@@ -544,8 +560,7 @@ class MidiConverter:
             for orig_idx in expanded_indices:
                 measure = track.measures[orig_idx]
                 measure_events = self._convert_measure(
-                    measure, current_tick, ch,
-                    percussion_articulations=percussion_articulations
+                    measure, current_tick, ch, percussion_articulations=percussion_articulations
                 )
                 all_events.extend(measure_events)
                 measure_ticks = self._measure_to_ticks(measure)
@@ -556,40 +571,48 @@ class MidiConverter:
 
         # 全局排序：所有轨道的事件按时间统一排序
         # 同一 tick 下: 控制/音色 → tempo → pitch_bend → note_on → note_off
-        all_events.sort(key=lambda e: (
-            e.time,
-            {'control_change': 0, 'program_change': 1, 'tempo': 2,
-             'pitch_bend': 3, 'note_on': 4, 'note_off': 5}.get(e.type, 99)
-        ))
+        all_events.sort(
+            key=lambda e: (
+                e.time,
+                {
+                    'control_change': 0,
+                    'program_change': 1,
+                    'tempo': 2,
+                    'pitch_bend': 3,
+                    'note_on': 4,
+                    'note_off': 5,
+                }.get(e.type, 99),
+            )
+        )
 
         return all_events, track_channels
-    
+
     def get_all_tracks_duration_ms(self, song) -> float:
         """
         获取所有音轨中最长的总时长(毫秒)
-        
+
         用于全轨并轨模式下的进度条计算，
         取最长轨道的时长作为总时长。
-        
+
         参数:
             song: GTPSong 对象
-        
+
         返回:
             最长音轨的时长(毫秒)
         """
         if not song or not song.tracks:
             return 0.0
-        
+
         max_duration = 0.0
         for idx in range(len(song.tracks)):
             duration = self.get_total_duration_ms(song, idx)
             max_duration = max(max_duration, duration)
-        
+
         return max_duration
-    
-    def _convert_measure(self, measure, start_tick: int,
-                          channel: int,
-                          percussion_articulations: List = None) -> List[MidiEvent]:
+
+    def _convert_measure(
+        self, measure, start_tick: int, channel: int, percussion_articulations: list = None
+    ) -> list[MidiEvent]:
         """
         转换单个小节的所有音符为 MIDI 事件
 
@@ -607,23 +630,23 @@ class MidiConverter:
         返回:
             该小节内所有音符的 note_on/note_off 事件列表
         """
-        events: List[MidiEvent] = []
+        events: list[MidiEvent] = []
         beat_tick = start_tick  # 当前拍的起始 tick（在小节内相对+绝对）
-        
+
         for beat in measure.beats:
             # 计算当前拍的 tick 时长
             beat_ticks = self._beat_duration_to_ticks(beat)
-            
+
             # 跳过空拍和纯休止符拍
             if beat.is_empty or (beat.is_rest and not beat.notes):
                 beat_tick += beat_ticks
                 continue
-            
+
             # 为该拍中的每个音符生成 MIDI 事件
             for note in beat.notes:
                 if note.is_rest:
                     continue
-                
+
                 # === 计算力度(velocity) ===
                 # [v0.4.1] 传入 beat 以支持 GP7/GP8 dynamics 力度标记
                 velocity = self._calculate_velocity(note, beat)
@@ -644,12 +667,12 @@ class MidiConverter:
                         effective_pitch = idx
                 else:
                     effective_pitch = note.midi_pitch
-                
+
                 # === 计算实际时长(考虑断奏等技巧) ===
                 actual_duration = beat_ticks
                 if TechniqueType.STACCATO in note.techniques:
                     actual_duration = int(beat_ticks * 0.5)  # 断奏缩短一半
-                
+
                 # === 生成 note_on 事件 ===
                 # 重要: 在note_on之前检查是否需要复位pitch_bend!
                 # 原因: MIDI Pitch Bend是通道级全局状态，一旦设置会影响后续所有同通道音符。
@@ -670,27 +693,31 @@ class MidiConverter:
                     else:
                         # 无曲线点数据但max_value>0 → 推弦从原位开始
                         needs_clean_bend = False
-                
+
                 if needs_clean_bend:
                     # 在note_on前发送pitch_bend=8192复位，确保当前音符以正确音高开始
-                    events.append(MidiEvent(
+                    events.append(
+                        MidiEvent(
+                            time=beat_tick,
+                            type="pitch_bend",
+                            channel=channel,
+                            pitch=8192,  # 无弯音中值
+                            velocity=0,
+                        )
+                    )
+
+                events.append(
+                    MidiEvent(
                         time=beat_tick,
-                        type="pitch_bend",
+                        type="note_on",
                         channel=channel,
-                        pitch=8192,  # 无弯音中值
-                        velocity=0
-                    ))
-                
-                events.append(MidiEvent(
-                    time=beat_tick,
-                    type="note_on",
-                    channel=channel,
-                    pitch=effective_pitch,  # [v0.4.1] 打击乐用 articulation, 旋律用 midi_pitch
-                    velocity=velocity
-                ))
-                
+                        pitch=effective_pitch,  # [v0.4.1] 打击乐用 articulation, 旋律用 midi_pitch
+                        velocity=velocity,
+                    )
+                )
+
                 # === 生成推弦(Pitch Bend)渐变事件序列 ===
-                # 
+                #
                 # 原理: MIDI Pitch Bend是瞬时值变化，只发一个事件会"咔"地突变到目标音高。
                 #       真实推弦效果需要发送多个中间值，从8192逐渐过渡到目标值。
                 #
@@ -704,80 +731,87 @@ class MidiConverter:
                 #
                 if note.bend and note.bend.value > 0 and note.bend.max_value > 0:
                     self._generate_bend_events(
-                        events, beat_tick, actual_duration, beat_ticks,
-                        channel, note.bend
+                        events, beat_tick, actual_duration, beat_ticks, channel, note.bend
                     )
-                
+
                 # === 生成 note_off 事件(在音符结束时触发) ===
-                events.append(MidiEvent(
-                    time=beat_tick + actual_duration,
-                    type="note_off",
-                    channel=channel,
-                    pitch=effective_pitch,  # [v0.4.1] 必须与 note_on 的 pitch 一致
-                    velocity=0  # note_off 的 velocity 固定为0
-                ))
-            
+                events.append(
+                    MidiEvent(
+                        time=beat_tick + actual_duration,
+                        type="note_off",
+                        channel=channel,
+                        pitch=effective_pitch,  # [v0.4.1] 必须与 note_on 的 pitch 一致
+                        velocity=0,  # note_off 的 velocity 固定为0
+                    )
+                )
+
             # 移动到下一拍
             beat_tick += beat_ticks
-        
+
         return events
-    
+
     def _bend_to_midi_pitch(self, bend_data) -> int:
         """
         将GTP推弦数据(BendData)转换为MIDI Pitch Bend值
-        
+
         原理:
           MIDI Pitch Bend是14位值(0-16383)，中值8192表示无弯音。
           默认灵敏度范围是±2半音(即±8192)，所以：
             - 1个全音(Full bend) = +8192 (从中值8192到16384，但最大16383)
             - 1/2音 = +4096
             - 1/4音 = +2048
-          
+
           BendData.value单位是四分之一音(cent):
             - 25 = 1/4音 → MIDI偏移+2048 → 最终值=8192+2048=10240
             - 50 = 1/2音 → MIDI偏移+4096 → 最终值=8192+4096=12288
             - 100 = Full(全音) → MIDI偏移+8192 → 最终值=8192+8192=16384(限制为16383)
-        
+
         参数:
             bend_data: BendData对象(含value/max_value属性)
-        
+
         返回:
             MIDI Pitch Bend值(0-16383, 中值8192=无弯音)
         """
         # MIDI中值(无弯音)
         midi_center = 8192
-        
+
         # 获取推弦量(使用max_value作为峰值，value作为初始值)
         bend_cents = getattr(bend_data, 'max_value', 0) or getattr(bend_data, 'value', 0) or 0
-        
+
         if bend_cents <= 0:
             return midi_center
-        
+
         # 转换: 四分之一音 → MIDI偏移量
         # 每个全音(100 cents) = 8192 MIDI单位 (默认灵敏度±2半音)
         # 所以每个四分之一音 = 8192 / 4 = 2048
         midi_offset = int(bend_cents * 81.92)  # 8192 / 100 = 81.92 per cent
-        
+
         # 计算最终值并限制在有效范围内
         result = midi_center + midi_offset
         return max(0, min(result, 16383))  # 限制: 0 ≤ value ≤ 16383
-    
-    def _generate_bend_events(self, events: list, beat_tick: int, 
-                               actual_duration: int, beat_ticks: int,
-                               channel: int, bend_data) -> None:
+
+    def _generate_bend_events(
+        self,
+        events: list,
+        beat_tick: int,
+        actual_duration: int,
+        beat_ticks: int,
+        channel: int,
+        bend_data,
+    ) -> None:
         """
         生成推弦的渐变Pitch Bend事件序列
-        
+
         原理: MIDI Pitch Bend是瞬时值变化，只发一个事件会"咔"地突变到目标音高。
               真实推弦效果需要发送多个中间值，从8192逐渐过渡到目标值，
               模拟吉他手推弦时音高平滑上升的过程。
-        
+
         策略:
           - 如果bend_data.points有曲线点数据 → 使用这些点生成渐变序列
           - 如果没有points → 自动生成线性渐变(从0到max_value)
           - 无论是否有释放段 → 在note_off时间点后强制发送pitch_bend=8192复位
               (防止弯音状态泄漏到后续音符)
-        
+
         参数:
             events: MIDI事件列表(往里面append新事件)
             beat_tick: 当前拍的起始tick位置
@@ -787,18 +821,18 @@ class MidiConverter:
             bend_data: BendData对象(含value/max_value/points/has_release属性)
         """
         midi_center = 8192  # MIDI无弯音中值
-        
+
         # === 步骤1: 构建推弦曲线点序列 ===
         # points格式: [(position, value), ...] position∈[0,1], value=四分之一音
         curve_points = getattr(bend_data, 'points', None) or []
-        
+
         if not curve_points:
             # 无曲线点数据 → 自动生成线性渐变: (0,0) → (0.7, max_value) → (1.0, max_value)
             max_val = bend_data.max_value or bend_data.value or 100
             curve_points = [
-                (0.0, 0),           # 起始: 无弯音
-                (0.3, max_val * 0.5),# 30%处: 到达一半
-                (0.7, max_val),     # 70%处: 到达峰值
+                (0.0, 0),  # 起始: 无弯音
+                (0.3, max_val * 0.5),  # 30%处: 到达一半
+                (0.7, max_val),  # 70%处: 到达峰值
             ]
             # 检查是否有释放段
             if bend_data.has_release:
@@ -814,78 +848,74 @@ class MidiConverter:
                     parsed_points.append((float(pt[0]), float(pt[1])))
                 elif hasattr(pt, 'position') and hasattr(pt, 'value'):
                     parsed_points.append((float(pt.position), float(pt.value)))
-            
+
             if len(parsed_points) >= 2:
                 curve_points = parsed_points
             else:
                 # 点数据不足 → 降级为自动生成
                 max_val = bend_data.max_value or bend_data.value or 100
                 curve_points = [(0.0, 0), (0.7, max_val), (1.0, max_val)]
-        
+
         # === 步骤2: 将曲线点转换为MIDI pitch_bend事件 ===
         # 最小间隔: 防止事件过于密集(至少10ms间隔，约30ticks@120BPM)
         min_interval = max(beat_ticks // 16, 5)  # 至少1/16拍或5ticks
         last_event_time = 0
-        
+
         needs_reset = True  # 是否需要在note_off后复位(默认需要)
-        
+
         for i, (pos, val) in enumerate(curve_points):
             # 计算此点的绝对时间(tick)
             point_time = beat_tick + int(actual_duration * pos)
-            
+
             # 确保最小间隔
             if i > 0 and (point_time - last_event_time) < min_interval:
                 continue
-            
+
             # 四分之一音 → MIDI值
             midi_val = self._cents_to_midi(val)
-            
-            events.append(MidiEvent(
-                time=point_time,
-                type="pitch_bend",
-                channel=channel,
-                pitch=midi_val,
-                velocity=0
-            ))
+
+            events.append(
+                MidiEvent(
+                    time=point_time, type="pitch_bend", channel=channel, pitch=midi_val, velocity=0
+                )
+            )
             last_event_time = point_time
-            
+
             # 如果最后一个点的value接近0，说明已有释放段
             if i == len(curve_points) - 1 and abs(val) < 5:
                 needs_reset = False  # 已经回到原位了
-        
+
         # === 步骤3: 强制复位(在note_off之后) ===
         # 无论曲线是否包含释放段，都在音符结束后+2ticks发送一次8192复位
         # 这是最安全的防线，防止任何情况下弯音泄漏到后续音符
         reset_time = beat_tick + actual_duration + max(beat_ticks // 4, 2)
-        events.append(MidiEvent(
-            time=reset_time,
-            type="pitch_bend",
-            channel=channel,
-            pitch=midi_center,
-            velocity=0
-        ))
-    
+        events.append(
+            MidiEvent(
+                time=reset_time, type="pitch_bend", channel=channel, pitch=midi_center, velocity=0
+            )
+        )
+
     def _cents_to_midi(self, cents: float) -> int:
         """
         将四分之一音(cent)值转换为MIDI Pitch Bend值
-        
+
         参数:
             cents: 四分之一音偏移量(正=升高, 负=降低)
                     25=1/4半音, 50=1/2半音, 100=Full全音
-        
+
         返回:
             MIDI Pitch Bend值(0-16383, 中值8192=无弯音)
         """
         midi_center = 8192
         if abs(cents) < 0.5:
             return midi_center  # 接近0则返回中值
-        
+
         # 转换公式: 每个四分之一音 = 81.92 MIDI单位
         # Full(100) = 8192, Half(50) = 4096, Quarter(25) = 2048
         midi_offset = int(cents * 81.92)
         result = midi_center + midi_offset
         return max(0, min(result, 16383))
-    
+
     def _beat_duration_to_ticks(self, beat) -> int:
         """
         将拍的时值转换为 tick 数
@@ -914,17 +944,17 @@ class MidiConverter:
         # 这样修改附点/连音逻辑只需改一处，保证一致性
         ticks = int(self.ticks_per_beat * beat.duration_value)
         return max(ticks, 1)  # 最少1 tick，防止除零
-    
+
     def _measure_to_ticks(self, measure) -> int:
         """
         计算一个小节的总 tick 时长
-        
+
         基于拍号计算: 总时长 = 分子 × (TICKS_PER_BEAT × 4 / 分母)
         例如 4/4拍 = 4 × 480 = 1920 ticks
         """
         numerator, denominator = measure.time_signature
         return int(numerator * self.ticks_per_beat * 4.0 / denominator)
-    
+
     def _calculate_velocity(self, note, beat=None) -> int:
         """
         根据音符属性计算实际演奏力度
@@ -966,43 +996,43 @@ class MidiConverter:
         # [v0.4.1] GP7/GP8: accentuated_type 字段优先
         accent_type = getattr(note, 'accentuated_type', 0)
         if accent_type == self.ACCENT_HEAVY:
-            base_vel = min(base_vel + 25, 127)   # Heavy Accent: 强重音 +25
+            base_vel = min(base_vel + 25, 127)  # Heavy Accent: 强重音 +25
         elif accent_type == self.ACCENT_NORMAL:
-            base_vel = min(base_vel + 15, 127)   # Normal Accent: 普通重音 +15
+            base_vel = min(base_vel + 15, 127)  # Normal Accent: 普通重音 +15
         elif TechniqueType.ACCENTUATED in note.techniques:
             # GP3-5 兼容路径: 技巧列表中的重音视为 Heavy(等同旧逻辑 +25)
             base_vel = min(base_vel + 25, 127)
 
         # 确保在合法范围内
         return max(0, min(127, base_vel))
-    
+
     def tick_to_ms(self, tick: int, bpm: int) -> float:
         """
         将 tick 数转换为毫秒时间
-        
+
         公式: ms = tick × (60000 / (bpm × ticks_per_beat))
-        
+
         参数:
             tick: tick 数值
             bpm:  每分钟拍数
-        
+
         返回:
             对应的毫秒数
         """
         if bpm <= 0:
             bpm = 120
         return tick * 60000.0 / (bpm * self.ticks_per_beat)
-    
+
     def get_total_duration_ms(self, song, track_index: int = 0) -> float:
         """
         获取指定音轨的总播放时长(毫秒)
-        
+
         用于进度条显示和同步计算
-        
+
         参数:
             song:         GTPSong 对象
             track_index:  音轨索引
-        
+
         返回:
             总时长(毫秒)
         """
@@ -1010,10 +1040,10 @@ class MidiConverter:
             return 0.0
         if track_index >= len(song.tracks):
             return 0.0
-        
+
         total_ticks = 0
         track = song.tracks[track_index]
         for measure in track.measures:
             total_ticks += self._measure_to_ticks(measure)
-        
+
         return self.tick_to_ms(total_ticks, song.tempo)

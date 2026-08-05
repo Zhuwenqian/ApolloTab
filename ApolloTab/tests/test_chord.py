@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ApolloTab/tests/test_chord.py
 
@@ -15,32 +14,31 @@ Chord 数据模型与 GPIF 解析测试 (ApolloTab v1.4.0)
 
 运行命令: venv/bin/python -m pytest /Users/limeng/Desktop/TAB-Score-Viewer/venv/lib/python3.13/site-packages/ApolloTab/tests/test_chord.py -q
 """
+
 from __future__ import annotations
 
 import sys
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 import pytest
 
-
 # ============================================================
 # 导入 ApolloTab 模块
 # ============================================================
-
 from ApolloTab.models.chord import Chord
 from ApolloTab.parser.gpif_parser import (
-    _chord_note_name,
-    _build_chord_from_xml,
     _CHORD_ACCIDENTAL_MAP,
     GpifParser,
+    _build_chord_from_xml,
+    _chord_note_name,
 )
-
 
 # ============================================================
 # Fixtures: 测试用 GP7 文件 (zip+XML 格式)
 # ============================================================
+
 
 def _make_minimal_gp7_xml() -> str:
     """
@@ -50,8 +48,14 @@ def _make_minimal_gp7_xml() -> str:
     """
     chord_xmls = []
     chord_names_data = [
-        ('C', 'Major'), ('C', 'Minor'), ('C', 'Major'), ('C', 'Minor'),
-        ('D', 'Major'), ('D', 'Minor'), ('D', 'Major'), ('D', 'Minor'),
+        ('C', 'Major'),
+        ('C', 'Minor'),
+        ('C', 'Major'),
+        ('C', 'Minor'),
+        ('D', 'Major'),
+        ('D', 'Minor'),
+        ('D', 'Major'),
+        ('D', 'Minor'),
     ]
     for key, third in chord_names_data:
         chord_xmls.append(
@@ -61,10 +65,7 @@ def _make_minimal_gp7_xml() -> str:
         )
     chords_xml = ''.join(chord_xmls)
 
-    beat_xmls = ''.join(
-        f'<Beat id="{i}"><Chord>{i}</Chord></Beat>'
-        for i in range(8)
-    )
+    beat_xmls = ''.join(f'<Beat id="{i}"><Chord>{i}</Chord></Beat>' for i in range(8))
 
     xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <GPIF>
@@ -98,21 +99,10 @@ def sample_gp7_file(tmp_path: Path) -> Path:
     return gp_path
 
 
-@pytest.fixture
-def real_gp7_chords_file() -> Path:
-    """真实的 guitarpro7/chords.gp 文件 (ApolloTab 测试目录或项目内)"""
-    candidates = [
-        Path('/Users/limeng/Desktop/TAB-Score-Viewer/guitarpro7/chords.gp'),
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    pytest.skip('chords.gp not found in known test paths')
-
-
 # ============================================================
 # _CHORD_ACCIDENTAL_MAP / _chord_note_name
 # ============================================================
+
 
 def test_chord_accidental_map_all_entries():
     """升降号映射应包含所有标准值"""
@@ -156,6 +146,7 @@ def test_chord_note_name_missing_accidental_defaults_natural():
 # Chord 数据类
 # ============================================================
 
+
 def test_chord_dataclass_major():
     """大三和弦数据类: C"""
     c = Chord(key='C')
@@ -196,6 +187,7 @@ def test_chord_dataclass_complex_chord():
 # ============================================================
 # _build_chord_from_xml
 # ============================================================
+
 
 def _chord_el(xml: str) -> ET.Element:
     """解析 <Chord> XML 字符串为 Element"""
@@ -388,6 +380,7 @@ class TestBuildChordFromXml:
 # GpifParser 集成 (端到端)
 # ============================================================
 
+
 class TestGpifParserChordIntegration:
     """GpifParser.parse_xml → beat.chord 自动填充端到端测试"""
 
@@ -395,6 +388,7 @@ class TestGpifParserChordIntegration:
         """解析构造的 GP7 文件: 8 个 beat 全部带 chord"""
         # 通过 GP7Parser 走完整 ZIP 流程
         from ApolloTab.parser.gp7_parser import GP7Parser
+
         song = GP7Parser().parse_file(str(sample_gp7_file))
 
         # 收集所有有 chord 的 beat
@@ -414,6 +408,7 @@ class TestGpifParserChordIntegration:
     def test_parse_real_gp7_file(self, real_gp7_chords_file):
         """解析真实 guitarpro7/chords.gp: 至少 1 个 beat 带 chord, 全部有名称"""
         from ApolloTab.parser.gp7_parser import GP7Parser
+
         song = GP7Parser().parse_file(str(real_gp7_chords_file))
 
         chord_beats = []
@@ -430,6 +425,7 @@ class TestGpifParserChordIntegration:
     def test_beat_without_chord_has_none(self, sample_gp7_file):
         """没有 <Chord> 引用的 beat 应有 beat.chord is None"""
         from ApolloTab.parser.gp7_parser import GP7Parser
+
         song = GP7Parser().parse_file(str(sample_gp7_file))
 
         # 构造的 GP7 中所有 beat 都有 chord, 验证 beat 字段存在
@@ -443,9 +439,9 @@ class TestGpifParserChordIntegration:
         """_chord_definitions 只包含真定义 (有 KeyNote), 不含 beat 引用"""
         # 单独走 GpifParser 验证内部状态
         import zipfile
-        with zipfile.ZipFile(str(sample_gp7_file), 'r') as z:
-            with z.open('Content/score.gpif') as fp:
-                xml_str = fp.read().decode('utf-8')
+
+        with zipfile.ZipFile(str(sample_gp7_file), 'r') as z, z.open('Content/score.gpif') as fp:
+            xml_str = fp.read().decode('utf-8')
 
         parser = GpifParser()
         parser.parse_xml(xml_str)
@@ -459,9 +455,9 @@ class TestGpifParserChordIntegration:
     def test_beat_chord_index_mapping(self, sample_gp7_file):
         """beat → chord_idx 映射正确, _chord_idx_of_beat 应指向 0~7"""
         import zipfile
-        with zipfile.ZipFile(str(sample_gp7_file), 'r') as z:
-            with z.open('Content/score.gpif') as fp:
-                xml_str = fp.read().decode('utf-8')
+
+        with zipfile.ZipFile(str(sample_gp7_file), 'r') as z, z.open('Content/score.gpif') as fp:
+            xml_str = fp.read().decode('utf-8')
 
         parser = GpifParser()
         parser.parse_xml(xml_str)
@@ -476,13 +472,16 @@ class TestGpifParserChordIntegration:
 # 公共 API 导出
 # ============================================================
 
+
 def test_chord_exported_from_apollotab_root():
     """Chord 应从 ApolloTab 根包直接可导入"""
     from ApolloTab import Chord as RootChord
+
     assert RootChord is Chord
 
 
 def test_chord_exported_from_models():
     """Chord 应从 ApolloTab.models 可导入"""
     from ApolloTab.models import Chord as ModelsChord
+
     assert ModelsChord is Chord

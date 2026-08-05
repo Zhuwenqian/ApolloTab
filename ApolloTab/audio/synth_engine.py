@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: synth_engine.py
@@ -9,7 +8,7 @@
 
 创建日期: 2026-06-07
 最后更新: 2026-06-30 (v1.3.0: set_drum_kit 发送合法 Bank Select CC#0=1/CC#32=0)
-依赖: 
+依赖:
   - pyfluidsynth >= 1.4.0 (Python绑定, 开源项目: pyfluidsynth/nwhitehead)
   - Windows: libfluidsynth-3.dll (FluidSynth C库, 需放到项目根目录或系统PATH中)
   - Linux:   libfluidsynth.so.x (通过包管理器安装: apt/dnf/pacman)
@@ -22,18 +21,18 @@
 
 调用示例:
     from gtp_engine.audio.synth_engine import SynthEngine
-    
+
     engine = SynthEngine()
     engine.load_soundfont("path/to/soundfont.sf2")
-    
+
     # 加载MIDI事件后播放
     engine.load_events(midi_event_list, bpm=120)
     engine.play()
-    
+
     # 暂停/继续
     engine.pause()
     engine.resume()
-    
+
     # 停止并清理
     engine.stop()
 
@@ -50,65 +49,65 @@
 
 import os
 import platform
-import time
 import threading
-from typing import List, Optional, Callable
+import time
+from collections.abc import Callable
+from typing import List, Optional
 
 
 class SynthEngine:
     """
     FluidSynth 音频合成引擎
-    
+
     功能概述:
       基于 FluidSynth 开源项目实现实时 MIDI 合成。
       加载 SoundFont (.sf2) 文件作为音色源，
       接收带时间戳的 MIDI 事件序列，按精确时间间隔播放。
-    
+
     核心原理:
       1. 初始化 FluidSynth 合成器实例 + 音频输出驱动
       2. 加载 SoundFont 文件到合成器（包含各种乐器音色采样）
       3. 播放线程按时间顺序逐个发送 MIDI 事件到合成器
       4. 合成器将 MIDI 事件实时渲染为音频波形输出到声卡
-    
+
     支持的 MIDI 事件类型:
       - note_on:  发声(指定通道/音高/力度)
       - note_off: 止音
       - tempo:    变速标记(用于同步计算)
-    
+
     参数说明(初始化):
       sample_rate:   采样率(Hz), 调整效果: 越高音质越好但CPU占用更多(推荐44100)
       buffer_size:   音频缓冲区大小(采样点数), 调整效果: 越大延迟越高但更稳定(推荐256/512)
       gain:          主音量增益(0.0-10.0), 调整效果: 1.0=原始音量, 2.0=翻倍
     """
-    
+
     # 默认音频参数
-    DEFAULT_SAMPLE_RATE = 44100     # 标准CD音质采样率(Hz), 调整效果: 48000更清晰
-    DEFAULT_BUFFER_SIZE = 512       # 音频缓冲区大小(采样点数), 调整效果: 256延迟更低
-    DEFAULT_GAIN = 0.8              # 默认主音量(0.0-1.0), 调整效果: 1.0=最大音量
-    
+    DEFAULT_SAMPLE_RATE = 44100  # 标准CD音质采样率(Hz), 调整效果: 48000更清晰
+    DEFAULT_BUFFER_SIZE = 512  # 音频缓冲区大小(采样点数), 调整效果: 256延迟更低
+    DEFAULT_GAIN = 0.8  # 默认主音量(0.0-1.0), 调整效果: 1.0=最大音量
+
     # 内置 SoundFont 搜索路径（按优先级排序）
     SOUNDFONT_SEARCH_PATHS = [
-        "soundfont",                    # 项目内 soundfont 目录
-        "../soundfont",                 # 项目上级目录
-        "../../soundfont",              # 更上级目录
+        "soundfont",  # 项目内 soundfont 目录
+        "../soundfont",  # 项目上级目录
+        "../../soundfont",  # 更上级目录
         os.path.expanduser("~/.fluidsynth"),  # 用户主目录
-        "/usr/share/sounds/sf2",        # Linux 系统路径
-        "/usr/share/soundfonts",        # Linux 备选路径
-        "C:/ProgramData/FluidSynth",    # Windows 系统路径
+        "/usr/share/sounds/sf2",  # Linux 系统路径
+        "/usr/share/soundfonts",  # Linux 备选路径
+        "C:/ProgramData/FluidSynth",  # Windows 系统路径
     ]
-    
+
     # 常见 SoundFont 文件名（自动搜索）
     SOUNDFONT_NAMES = [
-        "FluidR3_GM.sf2",              # FluidSynth 官方通用音色库(推荐)
-        "GeneralUser GS v1.471.sf2",   # GeneralUser 音色库
-        "default-GM.sf2",              # 默认 GM 音色库
+        "FluidR3_GM.sf2",  # FluidSynth 官方通用音色库(推荐)
+        "GeneralUser GS v1.471.sf2",  # GeneralUser 音色库
+        "default-GM.sf2",  # 默认 GM 音色库
     ]
-    
-    def __init__(self, sample_rate: int = None, buffer_size: int = None,
-                 gain: float = None):
+
+    def __init__(self, sample_rate: int = None, buffer_size: int = None, gain: float = None):
         """
         初始化合成引擎
-        
+
         参数:
             sample_rate:  采样率(Hz), None=使用默认44100
             buffer_size:  缓冲区大小, None=使用默认512
@@ -117,54 +116,56 @@ class SynthEngine:
         self.sample_rate = sample_rate or self.DEFAULT_SAMPLE_RATE
         self.buffer_size = buffer_size or self.DEFAULT_BUFFER_SIZE
         self.gain = gain or self.DEFAULT_GAIN
-        
+
         # === 内部状态 ===
-        self._synth = None              # FluidSynth 合成器实例
-        self._audio_driver = None       # 音频驱动实例
-        self._sfid = -1                 # 当前加载的SoundFont ID
-        self._soundfont_path = ""       # 当前SoundFont文件路径
-        
+        self._synth = None  # FluidSynth 合成器实例
+        self._audio_driver = None  # 音频驱动实例
+        self._sfid = -1  # 当前加载的SoundFont ID
+        self._soundfont_path = ""  # 当前SoundFont文件路径
+
         # === 播放状态 ===
-        self._events: List = []         # 待播放的MIDI事件列表
-        self._bpm: int = 120            # 当前BPM
-        self._ticks_per_beat: int = 480 # 每拍tick数(与MidiConverter一致)
-        
+        self._events: list = []  # 待播放的MIDI事件列表
+        self._bpm: int = 120  # 当前BPM
+        self._ticks_per_beat: int = 480  # 每拍tick数(与MidiConverter一致)
+
         # === 播放控制 ===
         self._is_playing: bool = False  # 是否正在播放
-        self._is_paused: bool = False   # 是否暂停
+        self._is_paused: bool = False  # 是否暂停
         self._play_thread: threading.Thread = None  # 播放线程
-        self._stop_flag: bool = False   # 停止信号
+        self._stop_flag: bool = False  # 停止信号
         self._pause_event = threading.Event()  # 暂停事件(用于暂停恢复同步)
-        self._pause_event.set()         # 初始为非暂停状态(set=不阻塞)
-        
+        self._pause_event.set()  # 初始为非暂停状态(set=不阻塞)
+
         # === 进度追踪 ===
         self._current_time_ms: float = 0.0  # 当前播放位置(毫秒)
-        self._start_time: float = 0.0        # 播放开始时的系统时间
-        self._paused_duration: float = 0.0   # 累计暂停时长(毫秒)
-        
+        self._start_time: float = 0.0  # 播放开始时的系统时间
+        self._paused_duration: float = 0.0  # 累计暂停时长(毫秒)
+
         # === 回调函数 ===
-        self._on_note_callback: Optional[Callable] = None  # 音符触发回调(用于视觉高亮)
+        self._on_note_callback: Callable | None = None  # 音符触发回调(用于视觉高亮)
 
         # === 活跃音符追踪（性能优化） ===
         # 格式: { (channel, pitch): True }
         # 用途: silence_all_notes() 只关闭实际发声的音符，避免遍历16×128=2048次
         self._active_notes: dict = {}  # 追踪当前正在发声的音符
-        
+
         # === Seek防抖机制 ===
         # 用途: 防止快速连续点击导致频繁seek造成卡顿
         self._last_seek_time: float = 0.0  # 上次seek的系统时间(perf_counter)
-        self._seek_debounce_ms: float = 50.0  # 防抖间隔(毫秒), 调整效果: 越大越防抖但响应越慢, 推荐50ms
+        self._seek_debounce_ms: float = (
+            50.0  # 防抖间隔(毫秒), 调整效果: 越大越防抖但响应越慢, 推荐50ms
+        )
         self._pending_seek_time: float = -1.0  # 待执行的seek目标时间(-1=无待执行)
-        
+
         # === A/B区域循环(内置，基于音频线程) ===
         # [v0.2.6] 将循环逻辑从UI层下沉到音频线程内部，彻底消除竞态/冷却/模拟时钟等问题
         # 原理: _play_loop()在播放完所有事件后检查循环标志，
         #       若启用则静音→重置时间基准→从头重新遍历事件(早于loop_start的自动被跳过)
         # 优势: UI层只需调用set_loop_region()设置范围后正常读取current_time_ms即可，
         #       不需要任何冷却帧计数器、模拟时钟、安全边界等复杂逻辑
-        self._loop_enabled: bool = False      # 是否启用A/B区域循环
-        self._loop_start_ms: float = 0.0      # 循环起始时间(毫秒)，对应A点所在小节的起始拍
-        self._loop_end_ms: float = 0.0        # 循环结束时间(毫秒)，对应B点所在小节的末尾拍
+        self._loop_enabled: bool = False  # 是否启用A/B区域循环
+        self._loop_start_ms: float = 0.0  # 循环起始时间(毫秒)，对应A点所在小节的起始拍
+        self._loop_end_ms: float = 0.0  # 循环结束时间(毫秒)，对应B点所在小节的末尾拍
 
         # === [解耦] 节拍器独立事件流与播放线程 ===
         # 原理: 节拍器事件不再混入主事件流，由独立线程驱动播放。
@@ -172,39 +173,43 @@ class SynthEngine:
         #       节拍器线程与主线程共享同一 FluidSynth 合成器输出
         #       （通过不同 MIDI 通道避免 note_on/note_off 冲突），
         #       但拥有独立的时间基准与播放控制状态。
-        self._metronome_events: List = []              # 节拍器事件（与 _events 互不影响）
-        self._metronome_bpm: int = 120                 # 节拍器播放速度
-        self._metronome_ticks_per_beat: int = 480      # 每拍 tick 数
-        self._metronome_total_ticks: int = 0           # 总 tick 上限（用于"仅节拍器"模式计时）
-        self._metronome_start_offset_ms: float = 0.0   # 起始跳过偏移（毫秒），用于播放中开启节拍器时对齐主播放位置
-        self._metronome_start_index: int = 0           # 起始事件索引（跳过已过去的 N 个事件，避免遍历大量旧事件卡顿）
-        self._metronome_start_perf: float = 0.0        # 节拍器线程的 perf_counter 起点（已减去 start_offset_ms/1000 使 elapsed_ms 与歌曲时间轴对齐）
-        self._metronome_thread: Optional[threading.Thread] = None  # 节拍器播放线程
-        self._metronome_stop_flag: bool = False        # 节拍器停止信号
-        self._metronome_paused: bool = False           # 节拍器是否暂停（独立于主暂停）
+        self._metronome_events: list = []  # 节拍器事件（与 _events 互不影响）
+        self._metronome_bpm: int = 120  # 节拍器播放速度
+        self._metronome_ticks_per_beat: int = 480  # 每拍 tick 数
+        self._metronome_total_ticks: int = 0  # 总 tick 上限（用于"仅节拍器"模式计时）
+        self._metronome_start_offset_ms: float = (
+            0.0  # 起始跳过偏移（毫秒），用于播放中开启节拍器时对齐主播放位置
+        )
+        self._metronome_start_index: int = (
+            0  # 起始事件索引（跳过已过去的 N 个事件，避免遍历大量旧事件卡顿）
+        )
+        self._metronome_start_perf: float = 0.0  # 节拍器线程的 perf_counter 起点（已减去 start_offset_ms/1000 使 elapsed_ms 与歌曲时间轴对齐）
+        self._metronome_thread: threading.Thread | None = None  # 节拍器播放线程
+        self._metronome_stop_flag: bool = False  # 节拍器停止信号
+        self._metronome_paused: bool = False  # 节拍器是否暂停（独立于主暂停）
         self._metronome_pause_event = threading.Event()  # 节拍器暂停事件
-        self._metronome_pause_event.set()              # 初始为非暂停状态
+        self._metronome_pause_event.set()  # 初始为非暂停状态
 
         # === 锁 ===
         self._lock = threading.RLock()  # 可重入锁，保护共享状态
-    
+
     @property
     def is_playing(self) -> bool:
         """是否正在播放(非暂停状态)"""
         with self._lock:
             return self._is_playing and not self._is_paused
-    
+
     @property
     def is_paused(self) -> bool:
         """是否处于暂停状态"""
         with self._lock:
             return self._is_paused
-    
+
     @property
     def current_time_ms(self) -> float:
         """
         获取当前播放位置(毫秒)
-        
+
         计算公式: 从_start_time到现在的经过时间 - 暂停时间 + 初始偏移(seek位置)
         重要: 必须加上_initial_time_offset，否则seek后的current_time_ms会从0开始而非从seek位置开始
         """
@@ -214,27 +219,27 @@ class SynthEngine:
                 elapsed = (time.perf_counter() - self._start_time) * 1000.0
                 return elapsed - self._paused_duration + getattr(self, '_initial_time_offset', 0)
             return self._current_time_ms
-    
+
     @property
     def is_initialized(self) -> bool:
         """合成器是否已成功初始化"""
         return self._synth is not None
-    
+
     def initialize(self) -> bool:
         """
         初始化 FluidSynth 合成器和音频驱动
-        
+
         原理:
           创建 FluidSynth.Synth 实例并配置音频参数，
           然后启动音频输出驱动将合成结果送到声卡。
-        
+
         返回:
             True=初始化成功, False=失败(fluidsynth未安装或设备不可用)
-        
+
         注意:
           此方法必须在 load_soundfont() 之前调用！
           如果 fluidsynth 库未安装会返回 False 但不抛异常。
-          
+
         DLL 依赖说明:
           需要 libfluidsynth-3.dll (FluidSynth C库)。
           自动搜索顺序: 项目根目录 → 系统PATH → 标准安装路径。
@@ -243,19 +248,19 @@ class SynthEngine:
         try:
             # === 根据操作系统平台查找并加载 FluidSynth 库 ===
             _system = platform.system()
-            
+
             if _system == 'Windows':
                 # === Windows: 查找 DLL 并添加到 PATH ===
                 _dll_dir = self._get_project_root()
                 _dll_path = os.path.join(_dll_dir, "libfluidsynth-3.dll")
-                
+
                 if os.path.isfile(_dll_path):
                     # 将DLL目录添加到环境变量PATH（ctypes.util.find_library依赖PATH搜索）
                     _old_path = os.environ.get('PATH', '')
                     if _dll_dir not in _old_path:
                         os.environ['PATH'] = _dll_dir + os.pathsep + _old_path
                     print(f"[SynthEngine] 已添加DLL目录到PATH: {_dll_dir}")
-                    
+
                     # Python 3.11+ 同时添加到DLL搜索目录(用于运行时加载)
                     if hasattr(os, 'add_dll_directory'):
                         try:
@@ -263,12 +268,12 @@ class SynthEngine:
                         except OSError:
                             pass  # 某些情况下可能失败，不影响PATH方式
                 else:
-                    print(f"[SynthEngine] 警告: 未找到 libfluidsynth-3.dll")
-                    
+                    print("[SynthEngine] 警告: 未找到 libfluidsynth-3.dll")
+
             elif _system == 'Linux':
                 # === Linux: 查找 .so 文件（包管理器安装的） ===
                 _so_path = self._find_so_path()
-                
+
                 if _so_path:
                     # 将 .so 所在目录添加到 LD_LIBRARY_PATH（让 ctypes 能找到依赖库）
                     _so_dir = os.path.dirname(_so_path)
@@ -276,28 +281,26 @@ class SynthEngine:
                     if _so_dir not in _old_ld_path:
                         os.environ['LD_LIBRARY_PATH'] = _so_dir + os.pathsep + _old_ld_path
                     print(f"[SynthEngine] 已找到 libfluidsynth.so: {_so_path}")
-                    
+
                     # 预加载 .so 文件（确保 ctypes.CDLL 能找到）
                     try:
                         import ctypes
+
                         ctypes.CDLL(_so_path, mode=ctypes.RTLD_GLOBAL)
                         print(f"[SynthEngine] 已预加载: {_so_path}")
                     except OSError as e:
                         print(f"[SynthEngine] 预加载失败: {e}")
                 else:
-                    print(f"[SynthEngine] 警告: 未找到 libfluidsynth.so (请安装 fluidsynth)")
+                    print("[SynthEngine] 警告: 未找到 libfluidsynth.so (请安装 fluidsynth)")
                     print("  Ubuntu/Debian: sudo apt-get install libfluidsynth3")
                     print("  Fedora/RHEL:   sudo dnf install fluidsynth-libs")
                     print("  Arch Linux:    sudo pacman -S fluidsynth")
-            
+
             import fluidsynth
-            
+
             # 创建合成器实例
-            self._synth = fluidsynth.Synth(
-                gain=self.gain,
-                sample_rate=self.sample_rate
-            )
-            
+            self._synth = fluidsynth.Synth(gain=self.gain, sample_rate=self.sample_rate)
+
             # 启动音频驱动（根据操作系统自动选择）
             # 原理: 不同Linux发行版/桌面环境使用不同的音频后端，
             #       需要按优先级依次尝试直到成功:
@@ -306,7 +309,7 @@ class SynthEngine:
             #       - alsa:       纯ALSA系统(Docker容器/无桌面环境)
             #       - jack:       专业音频工作站
             #       - default:    FluidSynth内置自动检测(最后尝试)
-            
+
             if _system == 'Windows':
                 # Windows 使用 DirectSound
                 _driver_list = ['dsound', 'waveout', 'default']
@@ -316,7 +319,7 @@ class SynthEngine:
             else:
                 # Linux: 按优先级尝试多种音频驱动
                 _driver_list = ['pulseaudio', 'pipewire', 'alsa', 'jack', 'default']
-            
+
             self._audio_driver = None
             for _drv in _driver_list:
                 try:
@@ -329,7 +332,7 @@ class SynthEngine:
                         print(f"[SynthEngine] 驱动 {_drv} 不可用，尝试下一个...")
                 except Exception as _drv_err:
                     print(f"[SynthEngine] 驱动 {_drv} 启动失败: {_drv_err}")
-            
+
             if self._audio_driver is None:
                 print("[SynthEngine] 警告: 所有音频驱动均无法启动，将无声音输出")
                 print("  可能原因:")
@@ -341,55 +344,57 @@ class SynthEngine:
                 print("    Ubuntu/Debian: sudo apt-get install pulseaudio-utils libasound2")
                 print("    Fedora/RHEL:   sudo dnf install pulseaudio-libs alsa-lib")
                 print("    Docker:        添加 --device /dev/snd 参数")
-            
+
             return True
-            
+
         except ImportError:
             print("[SynthEngine] 警告: fluidsynth 库未安装")
-            print("  安装命令: pip install pyfluidsynth -i https://pypi.tuna.tsinghua.edu.cn/simple")
+            print(
+                "  安装命令: pip install pyfluidsynth -i https://pypi.tuna.tsinghua.edu.cn/simple"
+            )
             return False
         except Exception as e:
             print(f"[SynthEngine] 初始化失败: {e}")
             return False
-    
+
     @staticmethod
     def _get_project_root() -> str:
         """
         获取项目根目录路径，同时搜索 FluidSynth DLL 所在目录
-        
+
         原理: 从当前文件位置向上查找，同时检查常见的DLL放置位置:
              1. 项目根目录/libfluidsynth-3.dll
              2. 项目根目录/fluidsnyth/bin/libfluidsynth-3.dll (FluidSynth Windows发行版)
              3. 项目根目录/fluidsynth/bin/libfluidsynth-3.dll
-        
+
         返回:
             包含 libfluidsynth-3.dll 的目录绝对路径，找不到则返回项目根目录
         """
         # 方法1: 从本模块文件位置推导 (gtp_engine/audio/ → 项目根目录)
         _here = os.path.dirname(os.path.abspath(__file__))
         _root = os.path.normpath(os.path.join(_here, '..', '..'))
-        
+
         # 搜索DLL的候选目录（按优先级排序）
         _dll_dirs = [
-            _root,                                    # 项目根目录
-            os.path.join(_root, "_internal"),          # PyInstaller打包后的_internal文件夹
+            _root,  # 项目根目录
+            os.path.join(_root, "_internal"),  # PyInstaller打包后的_internal文件夹
             os.path.join(_root, "fluidsnyth", "bin"),  # FluidSynth Windows发行版(常见拼写)
             os.path.join(_root, "fluidsynth", "bin"),  # 正确拼写的发行版目录
-            os.path.join(_root, "bin"),                # 通用bin目录
+            os.path.join(_root, "bin"),  # 通用bin目录
         ]
-        
+
         for _d in _dll_dirs:
             if os.path.isfile(os.path.join(_d, "libfluidsynth-3.dll")):
                 print(f"[SynthEngine] 找到DLL: {_d}")
                 return _d
-        
+
         # 都没找到，返回项目根目录（后续导入会报错但给出明确提示）
         return _root
-    
+
     def _find_dll_path(self) -> str:
         """
         查找 libfluidsynth-3.dll 的完整路径 (仅 Windows)
-        
+
         返回:
             DLL完整路径，找不到返回空字符串
         """
@@ -399,27 +404,27 @@ class SynthEngine:
             if os.path.isfile(_path):
                 return _path
         return ""
-    
+
     @staticmethod
     def _find_so_path() -> str:
         """
         查找 libfluidsynth.so 的完整路径 (仅 Linux)
-        
+
         原理: 按常见 Linux 发行版的包管理器安装路径搜索:
              1. Ubuntu/Debian (apt): /usr/lib/x86_64-linux-gnu/
              2. Fedora/RHEL/CentOS (dnf/yum): /usr/lib64/
              3. Arch Linux/openSUSE (pacman/zypper): /usr/lib/
              4. Alpine Linux (apk): /usr/lib/
              5. 通用路径: /usr/local/lib/
-        
+
         搜索的文件名（按版本优先级）:
              - libfluidsynth.so.3 (FluidSynth v2.x/v3.x)
              - libfluidsynth.so.2 (FluidSynth v1.x/v2.x)
              - libfluidsynth.so.1 (FluidSynth v1.x)
-        
+
         返回:
             .so 文件完整路径，找不到返回空字符串
-        
+
         安装命令参考:
              Ubuntu/Debian: sudo apt-get install libfluidsynth3
              Fedora/RHEL:   sudo dnf install fluidsynth-libs
@@ -434,51 +439,48 @@ class SynthEngine:
             ("/usr/lib/x86_64-linux-gnu", "Ubuntu/Debian x64"),
             ("/usr/lib/aarch64-linux-gnu", "Ubuntu/Debian ARM64"),
             ("/usr/lib/i386-linux-gnu", "Ubuntu/Debian i386"),
-            
             # Fedora/RHEL/CentOS (RPM系)
             ("/usr/lib64", "Fedora/RHEL/CentOS"),
-            
             # Arch Linux / openSUSE / Alpine / 通用
             ("/usr/lib", "Arch Linux/openSUSE/Alpine/通用"),
             ("/usr/local/lib", "本地编译安装"),
-            
             # Homebrew on Linux (较少见但支持)
             ("/home/linuxbrew/.linuxbrew/lib", "Linuxbrew"),
         ]
-        
+
         # === 搜索的 .so 文件名（按版本从高到低） ===
         _so_names = [
-            "libfluidsynth.so.3",   # FluidSynth v2.x/v3.x (推荐)
-            "libfluidsynth.so.2",   # FluidSynth v1.x/v2.x
-            "libfluidsynth.so.1",   # FluidSynth v1.x
-            "libfluidsynth.so",     # 无版本号的符号链接(部分发行版)
+            "libfluidsynth.so.3",  # FluidSynth v2.x/v3.x (推荐)
+            "libfluidsynth.so.2",  # FluidSynth v1.x/v2.x
+            "libfluidsynth.so.1",  # FluidSynth v1.x
+            "libfluidsynth.so",  # 无版本号的符号链接(部分发行版)
         ]
-        
+
         # === 遍历所有候选路径和文件名 ===
         for _dir_path, _distro in _so_search_paths:
             if not os.path.isdir(_dir_path):
                 continue
-                
+
             for _so_name in _so_names:
                 _full_path = os.path.join(_dir_path, _so_name)
                 if os.path.isfile(_full_path):
                     print(f"[SynthEngine] 找到 .so 文件 ({_distro}): {_full_path}")
                     return _full_path
-        
+
         # === 未找到，返回空字符串 ===
         return ""
-    
+
     def load_soundfont(self, path: str = None) -> bool:
         """
         加载 SoundFont 音色文件
-        
+
         参数:
             path: SoundFont 文件路径(.sf2格式)
                   None=自动搜索内置/系统常见 SoundFont 文件
-        
+
         返回:
             True=加载成功, False=失败(文件不存在或格式错误)
-        
+
         注意:
           必须先调用 initialize() 成功后再调用此方法！
           SoundFont 文件包含乐器音色的采样数据，是音频输出的基础。
@@ -487,22 +489,22 @@ class SynthEngine:
         if self._synth is None:
             print("[SynthEngine] 错误: 请先调用 initialize()")
             return False
-        
+
         # 如果指定了路径，直接尝试加载
         if path and os.path.isfile(path):
             return self._load_sf_file(path)
-        
+
         # 自动搜索 SoundFont 文件
         sf_path = self._find_soundfont()
         if sf_path:
             return self._load_sf_file(sf_path)
-        
+
         print("[SynthEngine] 错误: 未找到 SoundFont 文件")
         print("  解决方案:")
         print("  1. 下载 FluidR3_GM.sf2: https://ftp.osuosl.org/pub/musespan/SoundFonts/")
         print("  2. 放到项目 soundfont/ 目录下")
         return False
-    
+
     def _load_sf_file(self, path: str) -> bool:
         """
         内部方法: 实际加载 SoundFont 文件到合成器
@@ -511,14 +513,14 @@ class SynthEngine:
             # 先卸载旧的 SoundFont（如果有）
             if self._sfid >= 0:
                 self._synth.sfunload(self._sfid)
-            
+
             # 加载新的 SoundFont
             self._sfid = self._synth.sfload(path)
-            
+
             if self._sfid >= 0:
                 self._soundfont_path = path
                 print(f"[SynthEngine] SoundFont 加载成功: {os.path.basename(path)}")
-                
+
                 # 设置吉他音色(程序号24-30对应各种吉他)
                 # 通道0默认已设置钢琴(0)，这里切换到电吉他(27=Clean Guitar)
                 # 用户可在后续通过 program_change 自定义
@@ -526,15 +528,15 @@ class SynthEngine:
             else:
                 print(f"[SynthEngine] SoundFont 加载失败: {path}")
                 return False
-                
+
         except Exception as e:
             print(f"[SynthEngine] SoundFont 加载异常: {e}")
             return False
-    
-    def _find_soundfont(self) -> Optional[str]:
+
+    def _find_soundfont(self) -> str | None:
         """
         自动搜索可用的 SoundFont 文件
-        
+
         搜索顺序:
           1. 项目 soundfont/ 目录
           2. 用户 ~/.fluidsynth/ 目录
@@ -546,13 +548,13 @@ class SynthEngine:
                 full_path = os.path.join(search_dir, sf_name)
                 if os.path.isfile(full_path):
                     return full_path
-        
+
         return None
-    
+
     def set_instrument(self, channel: int = 0, program: int = 24) -> None:
         """
         设置指定通道的乐器音色(MIDI程序号)
-        
+
         参数:
             channel: MIDI通道(0-15)
             program: 程序号(GM标准):
@@ -560,7 +562,7 @@ class SynthEngine:
                      26=爵士电吉他(Jazz), 27=清音电吉他(Clean),
                      28=失真电吉他(Overdrive), 29=高增益失真(Distortion),
                      30=泛音(Palm Muted)
-        
+
         常用吉他音色对照表:
           24 Nylon String Guitar  | 25 Steel String Guitar
           26 Jazz Electric        | 27 Clean Electric
@@ -569,15 +571,15 @@ class SynthEngine:
         """
         if self._synth:
             self._synth.program_change(channel, program)
-    
+
     def set_drum_kit(self, channel: int = 9, kit: int = 0) -> None:
         """
         设置指定通道为GM鼓组音色
-        
+
         原理: GM标准中，鼓组音色位于 Bank MSB=128 (Percussion Bank)，
               与旋律乐器(Bank 0)完全分离。必须通过 CC#0 (Bank Select MSB)
               切换到鼓组bank后，再选择鼓组program。
-        
+
         参数:
             channel: MIDI通道(默认9=打击乐保留通道)
             kit:     鼓组程序号(GM标准):
@@ -586,10 +588,10 @@ class SynthEngine:
                      2 = Power Kit(强力鼓组)
                      3 = Electronic Kit(电子鼓组)
                      ... 等等
-        
+
         注意: 此方法必须在 load_events() 之前调用，
               否则通道可能已被设置为旋律乐器音色导致鼓声异常。
-        
+
         GM 鼓组常用 note 映射:
           35=Kick Drum 2   | 36=Bass Drum 1(底鼓) | 37=Side Stick
           38=Acoustic Snare(军鼓) | 39=Hand Clap    | 40=Electric Snare
@@ -614,21 +616,20 @@ class SynthEngine:
             #   CC#32 (LSB) = 128 & 0x7F = 0
             # 之前直接 cc(channel, 0, 128) 发送 128 给 CC 值，超出 0-127 范围，
             # FluidSynth 会忽略该切换，鼓组音色无法生效。
-            self._synth.cc(channel, 0, 1)       # CC#0 = Bank Select MSB = 1
-            self._synth.cc(channel, 32, 0)      # CC#32 = Bank Select LSB = 0
+            self._synth.cc(channel, 0, 1)  # CC#0 = Bank Select MSB = 1
+            self._synth.cc(channel, 32, 0)  # CC#32 = Bank Select LSB = 0
             # Program Change 选择具体鼓组类型
             self._synth.program_change(channel, kit)
-    
-    def load_events(self, events: list, bpm: int = 120,
-                    ticks_per_beat: int = 480) -> None:
+
+    def load_events(self, events: list, bpm: int = 120, ticks_per_beat: int = 480) -> None:
         """
         加载待播放的 MIDI 事件序列
-        
+
         参数:
             events:         MidiEvent 对象列表(由 MidiConverter.generate())
             bpm:            播放速度(BPM, 每分钟拍数)
             ticks_per_beat: 每四分音符的tick数(需与MidiConverter一致)
-        
+
         注意:
           此方法仅加载数据，不会立即开始播放。
           需要调用 play() 才能开始播放。
@@ -641,18 +642,18 @@ class SynthEngine:
             self._current_time_ms = 0.0
             self._paused_duration = 0.0
             self._initial_time_offset = 0.0  # 初始化时间偏移
-    
+
     def play(self) -> None:
         """
         开始播放(从当前位置或开头开始)
-        
+
         原理:
           在独立线程中运行播放循环：
             1. 计算每个事件的预定播放时间(毫秒)
             2. 使用 time.sleep() 精确等待到该时刻
             3. 发送 MIDI 事件到 FluidSynth 合成器
             4. 循环直到所有事件播放完毕或收到停止信号
-        
+
         时间精度:
           使用 time.perf_counter() 高精度计时器，
           配合自适应 sleep 校正，误差 < 5ms
@@ -660,18 +661,18 @@ class SynthEngine:
         with self._lock:
             if self._is_playing and not self._is_paused:
                 return  # 已在播放中
-            
+
             self._is_playing = True
             self._is_paused = False
             self._stop_flag = False
             self._pause_event.set()  # 清除暂停状态
             # 重置初始偏移(由_play_loop根据_current_time_ms重新设置)
             self._initial_time_offset = getattr(self, '_current_time_ms', 0) or 0
-        
+
         # 启动播放线程
         self._play_thread = threading.Thread(target=self._play_loop, daemon=True)
         self._play_thread.start()
-    
+
     def pause(self) -> None:
         """
         暂停播放(保持当前进度位置)
@@ -724,20 +725,24 @@ class SynthEngine:
             #   elapsed = (now - _start_time) * 1000
             #   在恢复瞬间，我们希望 current_time_ms == self._current_time_ms（暂停位置）
             #   => _start_time = now - (_current_time_ms - _initial_time_offset + _paused_duration) / 1000
-            self._start_time = time.perf_counter() - (
-                self._current_time_ms
-                - getattr(self, '_initial_time_offset', 0)
-                + self._paused_duration
-            ) / 1000.0
+            self._start_time = (
+                time.perf_counter()
+                - (
+                    self._current_time_ms
+                    - getattr(self, '_initial_time_offset', 0)
+                    + self._paused_duration
+                )
+                / 1000.0
+            )
             self._is_paused = False
             self._pause_event.set()  # 清除暂停(唤醒播放线程)
 
         # [解耦] 主 MIDI 流恢复即可；节拍器有独立暂停控制，pause() 不再联动它
-    
+
     def stop(self) -> None:
         """
         停止播放并重置到开头
-        
+
         优化（v0.2.4）:
           使用 silence_all_notes() 代替手动遍历16×128次，
           性能提升100倍以上（典型场景：活跃音符<20个）
@@ -755,7 +760,7 @@ class SynthEngine:
             # 重置防抖状态
             self._last_seek_time = 0.0
             self._pending_seek_time = -1.0
-        
+
         # 停止所有正在发声的音符（使用优化后的方法）
         self.silence_all_notes()
 
@@ -765,19 +770,19 @@ class SynthEngine:
         # 等待播放线程结束
         if self._play_thread and self._play_thread.is_alive():
             self._play_thread.join(timeout=2.0)
-    
+
     def set_loop_region(self, start_ms: float, end_ms: float) -> None:
         """
         设置A/B区域循环范围(毫秒)
-        
+
         [v0.2.6] 将循环逻辑从UI层下沉到音频引擎内部。
         设置后，_play_loop()在播放到达end_ms时会自动回到start_ms继续播放，
         整个过程在音频线程内完成，UI层无感知、无竞态、无需冷却机制。
-        
+
         参数:
             start_ms: 循环起始时间(毫秒)，对应A点所在小节的起始拍时间
             end_ms:   循环结束时间(毫秒)，对应B点所在小节的末尾拍时间
-        
+
         注意:
             - 此方法只设置循环参数，不改变播放状态
             - 需要在播放前或播放中调用均可（播放中调用下次循环周期生效）
@@ -788,7 +793,7 @@ class SynthEngine:
             self._loop_enabled = True
             self._loop_start_ms = max(0, start_ms)
             self._loop_end_ms = max(start_ms + 1, end_ms)  # 至少比start大1ms
-    
+
     def clear_loop_region(self) -> None:
         """
         清除A/B区域循环设置，恢复为正常播放到结尾停止的模式
@@ -809,11 +814,15 @@ class SynthEngine:
     # 两个 API 来控制节拍器。主线程切换音轨/模式时不必再触发节拍器重建。
     #
 
-    def load_metronome_events(self, events: list, bpm: int = 120,
-                              ticks_per_beat: int = 480,
-                              total_ticks: int = 0,
-                              start_offset_ms: float = 0.0,
-                              start_index: int = 0) -> None:
+    def load_metronome_events(
+        self,
+        events: list,
+        bpm: int = 120,
+        ticks_per_beat: int = 480,
+        total_ticks: int = 0,
+        start_offset_ms: float = 0.0,
+        start_index: int = 0,
+    ) -> None:
         """
         加载节拍器事件序列并启动独立播放线程
 
@@ -875,9 +884,7 @@ class SynthEngine:
         # 后续 wait_ms = target_ms - elapsed_ms 就能直接算对，
         # 避免"首事件等 start_offset_ms 毫秒才发声"的问题
         self._metronome_start_perf = time.perf_counter() - self._metronome_start_offset_ms / 1000.0
-        self._metronome_thread = threading.Thread(
-            target=self._metronome_loop, daemon=True
-        )
+        self._metronome_thread = threading.Thread(target=self._metronome_loop, daemon=True)
         self._metronome_thread.start()
 
     def unload_metronome_events(self) -> None:
@@ -925,9 +932,11 @@ class SynthEngine:
     @property
     def is_metronome_active(self) -> bool:
         """节拍器线程是否正在运行"""
-        return (self._metronome_thread is not None
-                and self._metronome_thread.is_alive()
-                and not self._metronome_stop_flag)
+        return (
+            self._metronome_thread is not None
+            and self._metronome_thread.is_alive()
+            and not self._metronome_stop_flag
+        )
 
     def _metronome_loop(self) -> None:
         """
@@ -947,9 +956,7 @@ class SynthEngine:
         if not self._metronome_events or not self._synth:
             return
 
-        ms_per_tick = 60000.0 / max(
-            self._metronome_bpm * self._metronome_ticks_per_beat, 1
-        )
+        ms_per_tick = 60000.0 / max(self._metronome_bpm * self._metronome_ticks_per_beat, 1)
         start_offset_ms = self._metronome_start_offset_ms
         start_perf = self._metronome_start_perf  # 已修正（减去 start_offset_ms/1000）
         total_ticks = self._metronome_total_ticks
@@ -1039,9 +1046,7 @@ class SynthEngine:
                 return True
             elif remaining > 5:
                 # 短时 sleep 让出 CPU；同时允许被暂停事件唤醒
-                self._metronome_pause_event.wait(
-                    timeout=min(remaining - 2, 10) / 1000.0
-                )
+                self._metronome_pause_event.wait(timeout=min(remaining - 2, 10) / 1000.0)
             else:
                 # 接近 deadline，busy-wait
                 self._metronome_pause_event.wait(timeout=0.001)
@@ -1049,42 +1054,42 @@ class SynthEngine:
     def silence_all_notes(self) -> None:
         """
         静音所有正在发声的音符(不停止播放线程，仅清除当前声音)
-        
+
         性能优化（v0.2.4）:
           只关闭实际发声的音符（通过 _active_notes 追踪），
           而非遍历全部 16×128=2048 个可能组合。
           典型场景: 同时发声的音符 < 20个，性能提升100倍以上。
-        
+
         用途: seek跳转时调用，防止旧位置的音符与新位置的音符同时发声(双重声音)
               与stop()的区别: stop()会完全停止播放并重置状态，
                               silence_all_notes()仅清除声音，播放继续
         """
         if not self._synth:
             return
-        
+
         # === 快速路径：无活跃音符则直接返回 ===
         with self._lock:
             if not self._active_notes:
                 return  # 没有发声的音符，无需操作
-            
+
             # 复制一份快照（避免在迭代过程中修改字典）
             notes_to_silence = dict(self._active_notes)
             self._active_notes.clear()  # 立即清空追踪表
-        
+
         # === 仅关闭实际发声的音符 ===
-        for (ch, pitch) in notes_to_silence.keys():
+        for ch, pitch in notes_to_silence:
             try:
                 self._synth.noteoff(ch, pitch)
             except Exception:
                 pass  # 单个音符失败不影响其他音符
-        
+
         # === 复位所有通道的pitch_bend（防止残留弯音影响后续音符）===
-        for ch in set(ch for ch, _ in notes_to_silence.keys()):
+        for ch in set(ch for ch, _ in notes_to_silence):
             try:
                 self._synth.pitch_bend(ch, 8192)
             except Exception:
                 pass
-    
+
     # ================================================================
     # [封装] 公共 API：通道音量与循环状态
     # ================================================================
@@ -1204,19 +1209,19 @@ class SynthEngine:
     def seek(self, time_ms: float) -> None:
         """
         跳转到指定时间位置(毫秒)
-        
+
         原理: 停止当前播放 → 静音所有发声音符 → 过滤出时间≥目标位置的事件
               → 从目标位置开始重新播放。
               已经过去的 note_on 会被忽略（快速跳转时不回溯发声）。
-        
+
         性能优化（v0.2.4）:
           - 使用防抖机制避免快速连续点击导致频繁重建播放线程
           - silence_all_notes() 只关闭实际发声的音符（非2048次全扫）
           - 修复线程竞态条件：确保静音操作在锁保护下完成
-        
+
         参数:
             time_ms: 目标时间位置(毫秒)
-            
+
         注意:
           此方法是线程安全的，可从UI线程安全调用。
           内置50ms防抖间隔，快速连续点击只执行最后一次seek。
@@ -1224,25 +1229,25 @@ class SynthEngine:
         # === 防抖检查 ===
         current_time = time.perf_counter()
         time_since_last_seek = (current_time - self._last_seek_time) * 1000.0
-        
+
         if time_since_last_seek < self._seek_debounce_ms:
             # 距离上次seek太近，记录待执行的目标时间后返回
             # 播放线程会在下次循环时检查并执行
             with self._lock:
                 self._pending_seek_time = max(0, time_ms)
             return
-        
+
         self._last_seek_time = current_time
-        
+
         with self._lock:
             was_playing = self._is_playing and not self._is_paused
-            
+
             if was_playing:
                 # === Step 1: 先设置停止信号（阻止新事件发送）===
                 # 重要：必须在静音之前设置，防止竞态条件
                 self._stop_flag = True
                 self._pause_event.set()  # 解除暂停阻塞（如果处于暂停状态）
-                
+
                 # === Step 2: 在锁保护下执行静音（修复竞态条件）===
                 # 旧代码在这里释放了锁导致竞态，现在保持锁持有状态
                 # 由于已设置_stop_flag，_send_event会检查该标志后跳过
@@ -1253,26 +1258,26 @@ class SynthEngine:
                     self.silence_all_notes()
                 finally:
                     self._lock.acquire()
-            
+
             # === Step 3: 更新时间位置 ===
             self._current_time_ms = max(0, time_ms)
             self._paused_duration = 0.0
             # 同步更新初始偏移，使 current_time_ms 属性立即返回正确值
             self._initial_time_offset = self._current_time_ms
-            
+
             # 清除待执行的seek（已被执行）
             self._pending_seek_time = -1.0
-            
+
             if was_playing:
                 # === Step 4: 等待旧线程完全结束 ===
                 self._stop_flag = False  # 重置停止标志（供新线程使用）
                 self._is_playing = True
                 self._is_paused = False
                 self._pause_event.set()
-                
+
                 if self._play_thread and self._play_thread.is_alive():
                     self._play_thread.join(timeout=1.0)
-                
+
                 # === Step 4.5: 预置 _start_time（修复短循环seek竞态条件）===
                 # [v0.2.5 关键修复] 必须在新线程启动前设置 _start_time
                 # 原因: current_time_ms 属性依赖 (_start_time, _initial_time_offset) 计算
@@ -1281,26 +1286,26 @@ class SynthEngine:
                 #       导致 A/B 短循环在 seek 后立即误判为"已过B点"→ 再次 seek → 死循环卡在A点
                 # 修复: 在锁保护下预置 _start_time，新线程启动后会用几乎相同的值覆盖，无副作用
                 self._start_time = time.perf_counter()
-                
+
                 # === Step 5: 启动新的播放线程 ===
                 self._play_thread = threading.Thread(target=self._play_loop, daemon=True)
                 self._play_thread.start()
-    
+
     def set_note_callback(self, callback: Callable) -> None:
         """
         设置音符触发回调函数(用于视觉高亮同步)
-        
+
         参数:
             callback: 回调函数签名 callback(midi_pitch, velocity, time_ms)
                       当有 note_on 事件被触发时调用此函数，
                       用于通知 UI 层更新当前高亮的音符位置
         """
         self._on_note_callback = callback
-    
+
     def _play_loop(self) -> None:
         """
         播放线程主循环(内部方法，勿直接调用)
-        
+
         核心逻辑:
           1. 计算每 tick 对应的毫秒数: ms_per_tick = 60000 / (BPM × ticks_per_beat)
           2. 遍历所有事件，对每个事件:
@@ -1310,7 +1315,7 @@ class SynthEngine:
              d. 发送 MIDI 事件到合成器
              e. 触发回调(用于视觉同步)
           3. 所有事件处理完毕 → 检查循环标志 → 若启用则自动回到loop_start继续
-        
+
         [v0.2.6] 内置A/B循环: 当_loop_enabled=True时，播放完所有事件(或到达loop_end)后
           自动静音→重置时间基准→重新遍历事件列表(早于loop_start的事件被time检查跳过)。
           整个循环过程在音频线程内完成，UI层通过current_time_ms属性读取到的时间自然在[loop_start, loop_end]范围内往复。
@@ -1319,69 +1324,69 @@ class SynthEngine:
             with self._lock:
                 self._is_playing = False
             return
-        
+
         # === 时间基准计算 ===
         ms_per_tick = 60000.0 / (self._bpm * self._ticks_per_beat)
         start_offset = self._current_time_ms  # 跳转后的起始偏移(毫秒)
-        
+
         # 保存初始时间偏移，供 current_time_ms 属性使用
         # 这样 seek 到 5000ms 后开始播放，current_time_ms 会返回 5000+elapsed 而非仅 elapsed
         self._initial_time_offset = start_offset
-        
+
         # 记录实际开始播放的系统时间
         with self._lock:
             self._start_time = time.perf_counter()
-        
+
         try:
             # [v0.2.6] 用索引循环替代for循环，支持循环重启时重置索引
             evt_idx = 0
             num_events = len(self._events)
-            
+
             while True:
                 # === 检查是否需要循环重启 ===
                 # 条件: 已遍历完所有事件 + 循环已启用 + 未收到停止信号
                 if evt_idx >= num_events:
                     with self._lock:
                         should_loop = self._loop_enabled and not self._stop_flag
-                    
+
                     if should_loop:
                         # === 循环重启: 回到loop_start位置 ===
                         self.silence_all_notes()  # 静音当前发声的音符
-                        
+
                         with self._lock:
                             # 重置时间基准为循环起点
                             start_offset = self._loop_start_ms
                             self._initial_time_offset = start_offset
                             self._current_time_ms = start_offset
                             self._start_time = time.perf_counter()
-                        
+
                         # 重置事件索引，从头遍历(早于loop_start的会被target_time_ms检查自动跳过)
                         evt_idx = 0
                         continue
                     else:
                         # 无循环 → 正常结束播放
                         break
-                
+
                 evt = self._events[evt_idx]
                 evt_idx += 1
-                
+
                 # === 检查停止信号 ===
                 with self._lock:
                     if self._stop_flag:
                         break
-                    
+
                     # === 检查待执行的防抖seek ===
                     # 如果在防抖期间有新的seek请求，立即跳转到目标位置
                     if self._pending_seek_time >= 0:
                         target_seek = self._pending_seek_time
                         self._pending_seek_time = -1.0  # 清除待执行标记
-                        
+
                         # 更新起始偏移（相当于即时seek）
                         start_offset = target_seek
                         self._initial_time_offset = target_seek
                         self._current_time_ms = target_seek
                         self._start_time = time.perf_counter()
-                        
+
                         # 静音当前音符（防止双重声音）
                         # 临时释放锁以避免死锁
                         self._lock.release()
@@ -1389,24 +1394,24 @@ class SynthEngine:
                             self.silence_all_notes()
                         finally:
                             self._lock.acquire()
-                        
+
                         # 跳过比新起点更早的事件
                         if evt.time * ms_per_tick < target_seek:
                             if evt.type == "note_off" and self._synth:
                                 self._synth.noteoff(evt.channel, evt.pitch)
                             continue
-                
+
                 # === 检查暂停 ===
                 self._pause_event.wait()  # 暂停时此处阻塞
-                
+
                 # 再次检查停止(可能在暂停期间收到停止信号)
                 with self._lock:
                     if self._stop_flag:
                         break
-                
+
                 # === 计算事件的绝对时间(毫秒) ===
                 target_time_ms = evt.time * ms_per_tick
-                
+
                 # [v0.2.6 增强] A/B循环边界检查: 事件时间超过loop_end时立即触发循环重启
                 # 原因: 如果只在所有事件播完后才循环(evt_idx>=num_events)，短循环(如小节0-2)
                 #       会先播完整首谱(240秒)才回到A点，用户感知为"没有跳回A点"
@@ -1415,7 +1420,7 @@ class SynthEngine:
                     if target_time_ms >= self._loop_end_ms:
                         # 到达B点! 触发循环重启
                         self.silence_all_notes()
-                        
+
                         with self._lock:
                             if self._stop_flag:
                                 break
@@ -1424,48 +1429,48 @@ class SynthEngine:
                             self._initial_time_offset = start_offset
                             self._current_time_ms = start_offset
                             self._start_time = time.perf_counter()
-                        
+
                         # 重置事件索引，从头遍历(早于loop_start的会被自动跳过)
                         evt_idx = 0
                         continue  # 跳过当前事件，从第1个事件重新开始
-                
+
                 # 跳过已经过去的事件(seek时)
                 if target_time_ms < start_offset:
                     # 对于过去的 note_off，仍然需要执行以防止长音卡住
                     if evt.type == "note_off" and self._synth:
                         self._synth.noteoff(evt.channel, evt.pitch)
                     continue
-                
+
                 # === 等待到达目标时间 ===
                 relative_target = target_time_ms - start_offset
                 self._wait_until(relative_target)
-                
+
                 # === 再次检查状态(等待期间可能暂停/停止) ===
                 with self._lock:
                     if self._stop_flag:
                         break
-                
+
                 # === 发送 MIDI 事件到合成器 ===
                 self._send_event(evt)
-                
+
                 # === 触发回调(note_on 时通知视觉层) ===
                 if evt.type == "note_on" and self._on_note_callback:
                     try:
                         self._on_note_callback(evt.pitch, evt.velocity, target_time_ms)
                     except Exception:
                         pass  # 回调异常不影响播放
-            
+
             # === 播放结束 ===
             with self._lock:
                 if not self._stop_flag:
                     self._is_playing = False
                     self._current_time_ms = 0  # 播放完毕重置
-                    
+
         except Exception as e:
             print(f"[SynthEngine] 播放循环异常: {e}")
             with self._lock:
                 self._is_playing = False
-    
+
     def _wait_until(self, target_relative_ms: float) -> None:
         """
         精确等待到指定的相对时间位置(毫秒)
@@ -1492,13 +1497,13 @@ class SynthEngine:
                 # 暂停期间累计的时间已经反映在 elapsed = (now - _start_time)*1000 中
                 # （resume() 中已将 _start_time 设为合适的值，使 elapsed 从暂停位置继续）
                 continue
-            
+
             # 计算已播放的时间
             with self._lock:
                 elapsed = (time.perf_counter() - self._start_time) * 1000.0
-            
+
             remaining = target_relative_ms - elapsed
-            
+
             if remaining <= 0:
                 return  # 已到达目标时间
             elif remaining > 5:
@@ -1508,43 +1513,43 @@ class SynthEngine:
             else:
                 # 接近目标时间，busy-wait 提高精度
                 self._pause_event.wait(timeout=0.001)  # 1ms 短暂 sleep 让出CPU
-    
+
     def _send_event(self, event) -> None:
         """
         发送单个 MIDI 事件到 FluidSynth 合成器
-        
+
         参数:
             event: MidiEvent 对象
-            
+
         优化（v0.2.4）:
           自动维护 _active_notes 追踪表，
           使 silence_all_notes() 能快速定位并关闭实际发声的音符。
         """
         if not self._synth:
             return
-        
+
         try:
             if event.type == "note_on":
                 # note_on: 通道 + 音高 + 力度
                 self._synth.noteon(event.channel, event.pitch, event.velocity)
-                
+
                 # === 追踪活跃音符（用于silence_all_notes优化）===
                 with self._lock:
                     self._active_notes[(event.channel, event.pitch)] = True
-                
+
             elif event.type == "note_off":
                 # note_off: 通道 + 音高(velocity=0)
                 self._synth.noteoff(event.channel, event.pitch)
-                
+
                 # === 从活跃音符追踪表中移除 ===
                 with self._lock:
                     self._active_notes.pop((event.channel, event.pitch), None)
-                
+
             elif event.type == "pitch_bend":
                 # pitch_bend: 通道 + 弯音值(0-16383, 中值8192=无弯音)
                 # 用于实现推弦(bend)、颤音(vibrato)等效果
                 self._synth.pitch_bend(event.channel, event.pitch)
-                
+
             elif event.type == "control_change":
                 # 控制变化: CC# + 值 (0-127)
                 # 用于 Bank Select (CC#0/CC#32) 等音色库切换
@@ -1558,10 +1563,10 @@ class SynthEngine:
                 # tempo 变化: 更新内部 BPM 参考
                 # (实际变速能力需要更复杂的实现，这里仅记录)
                 pass
-                
+
         except Exception as e:
             print(f"[SynthEngine] 发送事件失败: {e}")
-    
+
     def shutdown(self) -> None:
         """
         关闭合成引擎并释放所有资源
@@ -1585,7 +1590,7 @@ class SynthEngine:
             finally:
                 self._synth = None
                 self._audio_driver = None
-    
+
     def __del__(self):
         """析构函数：确保资源释放"""
         try:

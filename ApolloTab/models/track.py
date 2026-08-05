@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: track.py
@@ -13,7 +12,8 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
 from .measure import GTPMeasure
 
 
@@ -32,6 +32,7 @@ class PercussionArticulation:
       staff_line:        在五线谱/TAB 谱上的行号(仅用于渲染)
       unique_id:         内部唯一标识(可选)
     """
+
     name: str = ""
     element_type: str = ""
     output_midi_number: int = -1
@@ -74,28 +75,30 @@ class GTPTrack:
                                 用于把 note.percussion_articulation 索引映射到真实 GM 鼓音
     """
 
-    name: str = ""                                      # 轨道名称
-    number: int = 1                                     # 轨道编号
-    strings: Tuple[int, ...] = (64, 59, 55, 50, 45, 40) # 调弦(MIDI音高)
-    fret_count: int = 24                                # 品格数
-    instrument: int = 30                                # MIDI乐器编号
-    measures: List[GTPMeasure] = field(default_factory=list)  # 小节列表
-    is_visible: bool = True                             # 可见性
-    is_solo: bool = False                               # 独奏
-    is_mute: bool = False                               # 静音
-    capo: int = 0                                       # 变调夹位置
+    name: str = ""  # 轨道名称
+    number: int = 1  # 轨道编号
+    strings: tuple[int, ...] = (64, 59, 55, 50, 45, 40)  # 调弦(MIDI音高)
+    fret_count: int = 24  # 品格数
+    instrument: int = 30  # MIDI乐器编号
+    measures: list[GTPMeasure] = field(default_factory=list)  # 小节列表
+    is_visible: bool = True  # 可见性
+    is_solo: bool = False  # 独奏
+    is_mute: bool = False  # 静音
+    capo: int = 0  # 变调夹位置
 
     # === GP7/GP8 扩展字段 (v0.4.0) ===
-    is_percussion: bool = False                         # 打击乐轨道
-    show_standard_notation: bool = False                # 是否显示五线谱（预留）
-    show_tablature: bool = True                         # 是否显示六线谱（默认）
-    show_slash: bool = False                            # 是否显示斜线谱（预留）
-    show_numbered: bool = False                         # 是否显示简谱（GP8预留）
-    midi_bank_msb: int = 0                              # MIDI Bank MSB
-    midi_bank_lsb: int = 0                              # MIDI Bank LSB
-    color: Optional[Tuple[int, int, int, int]] = None   # RGBA 颜色
-    short_name: str = ""                                # 短名称
-    percussion_articulations: List[PercussionArticulation] = field(default_factory=list)  # 鼓轨 articulation 映射表
+    is_percussion: bool = False  # 打击乐轨道
+    show_standard_notation: bool = False  # 是否显示五线谱（预留）
+    show_tablature: bool = True  # 是否显示六线谱（默认）
+    show_slash: bool = False  # 是否显示斜线谱（预留）
+    show_numbered: bool = False  # 是否显示简谱（GP8预留）
+    midi_bank_msb: int = 0  # MIDI Bank MSB
+    midi_bank_lsb: int = 0  # MIDI Bank LSB
+    color: tuple[int, int, int, int] | None = None  # RGBA 颜色
+    short_name: str = ""  # 短名称
+    percussion_articulations: list[PercussionArticulation] = field(
+        default_factory=list
+    )  # 鼓轨 articulation 映射表
 
     @property
     def string_count(self) -> int:
@@ -110,19 +113,20 @@ class GTPTrack:
     def get_tuning_name(self) -> str:
         """
         获取调弦方案的名称（英文硬编码）
-        
+
         原理:
           遍历预设调弦方案元组与当前调弦匹配，返回英文名称。
           英语受众更广，无需国际化翻译。
-          
+
         返回: 已知调弦返回英文标准名称，否则返回自定义描述
-        
+
         匹配方式: 遍历所有预设调弦方案，逐一比较元组值。
                  比字典键方式更健壮，可处理元组子类/类型差异等边界情况。
         """
         from ..utils.constants import StandardTunings
+
         tuning_tuple = self.strings
-        
+
         # 调弦名称映射表: (英文显示名, 预设值元组)
         tuning_map = [
             ("Standard", StandardTunings.STANDARD),
@@ -132,11 +136,11 @@ class GTPTrack:
             ("DADGAD", StandardTunings.DADGAD),
             ("Half Step Down", StandardTunings.HALF_STEP_DOWN),
         ]
-        
+
         for name, stuning in tuning_map:
             if tuning_tuple == stuning:
                 return name
-        
+
         return f"Custom ({len(self.strings)} strings)"
 
     def get_total_beats(self) -> int:

@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
+
 """
 ============================================================
 文件名: metronome.py
@@ -63,14 +63,15 @@ class MetronomeConfig:
       channel:          节拍器专用 MIDI 通道，默认 15，避开旋律/鼓通道
       click_duration_ms: 每个点击声持续时间 (毫秒)，默认 50ms
     """
+
     enabled: bool = False
     volume: float = 0.7
-    gain: float = 1.5            # 全局增益，解决木鱼音色被掩盖问题；1.0=原音量, 1.5=1.5倍
-    accent_pitch: int = 77       # GM High Woodblock，重拍
-    normal_pitch: int = 76       # GM Low Woodblock，普通拍
-    accent_velocity: int = 100   # 基础重拍力度，最大音量+默认增益时可达 127 上限
-    normal_velocity: int = 70    # 基础普通拍力度，最大音量+默认增益时约 105，保留重拍区分度
-    channel: int = 15            # 避开旋律通道 0-8/10-14 和鼓通道 9
+    gain: float = 1.5  # 全局增益，解决木鱼音色被掩盖问题；1.0=原音量, 1.5=1.5倍
+    accent_pitch: int = 77  # GM High Woodblock，重拍
+    normal_pitch: int = 76  # GM Low Woodblock，普通拍
+    accent_velocity: int = 100  # 基础重拍力度，最大音量+默认增益时可达 127 上限
+    normal_velocity: int = 70  # 基础普通拍力度，最大音量+默认增益时约 105，保留重拍区分度
+    channel: int = 15  # 避开旋律通道 0-8/10-14 和鼓通道 9
     click_duration_ms: int = 50  # 点击声持续时间，单位毫秒
 
     def scaled_accent_velocity(self) -> int:
@@ -92,7 +93,7 @@ class MetronomeGenerator:
     """
 
     @classmethod
-    def _create_channel_setup_events(cls, config: MetronomeConfig) -> List[MidiEvent]:
+    def _create_channel_setup_events(cls, config: MetronomeConfig) -> list[MidiEvent]:
         """
         创建通道音色设置事件
 
@@ -104,21 +105,25 @@ class MetronomeGenerator:
         """
         # [延迟导入] 避免与 midi_converter 循环导入
         from .midi_converter import MidiEvent
+
         ch = config.channel
         return [
-            MidiEvent(time=0, type="control_change", channel=ch,
-                      pitch=0, velocity=1, value=1),    # CC#0 = Bank MSB
-            MidiEvent(time=0, type="control_change", channel=ch,
-                      pitch=32, velocity=0, value=0),   # CC#32 = Bank LSB
-            MidiEvent(time=0, type="control_change", channel=ch,
-                      pitch=7, velocity=127, value=127), # CC#7 = Channel Volume, 最大音量
-            MidiEvent(time=0, type="program_change", channel=ch,
-                      pitch=0, velocity=0, value=0),    # Program = 0, Drum Kit
+            MidiEvent(
+                time=0, type="control_change", channel=ch, pitch=0, velocity=1, value=1
+            ),  # CC#0 = Bank MSB
+            MidiEvent(
+                time=0, type="control_change", channel=ch, pitch=32, velocity=0, value=0
+            ),  # CC#32 = Bank LSB
+            MidiEvent(
+                time=0, type="control_change", channel=ch, pitch=7, velocity=127, value=127
+            ),  # CC#7 = Channel Volume, 最大音量
+            MidiEvent(
+                time=0, type="program_change", channel=ch, pitch=0, velocity=0, value=0
+            ),  # Program = 0, Drum Kit
         ]
 
     @classmethod
-    def _click_duration_ticks(cls, bpm: int, ticks_per_beat: int,
-                              click_duration_ms: int) -> int:
+    def _click_duration_ticks(cls, bpm: int, ticks_per_beat: int, click_duration_ms: int) -> int:
         """
         计算指定毫秒数对应的 tick 数
 
@@ -133,11 +138,15 @@ class MetronomeGenerator:
         return max(1, ticks)
 
     @classmethod
-    def _generate_beats(cls, start_tick: int, beat_count: int,
-                        ticks_per_beat: float,
-                        bpm: int,
-                        config: MetronomeConfig,
-                        accent_first: bool = True) -> List[MidiEvent]:
+    def _generate_beats(
+        cls,
+        start_tick: int,
+        beat_count: int,
+        ticks_per_beat: float,
+        bpm: int,
+        config: MetronomeConfig,
+        accent_first: bool = True,
+    ) -> list[MidiEvent]:
         """
         生成一段连续拍的点击事件
 
@@ -153,14 +162,15 @@ class MetronomeGenerator:
         """
         # [延迟导入] 避免与 midi_converter 循环导入
         from .midi_converter import MidiEvent
-        events: List[MidiEvent] = []
+
+        events: list[MidiEvent] = []
         accent_vel = config.scaled_accent_velocity()
         normal_vel = config.scaled_normal_velocity()
         ch = config.channel
         duration_ticks = cls._click_duration_ticks(
             bpm=bpm,
             ticks_per_beat=int(ticks_per_beat) or 480,
-            click_duration_ms=config.click_duration_ms
+            click_duration_ms=config.click_duration_ms,
         )
 
         for i in range(beat_count):
@@ -170,22 +180,33 @@ class MetronomeGenerator:
             beat_tick = int(start_tick + i * ticks_per_beat)
             off_tick = beat_tick + duration_ticks
 
-            events.append(MidiEvent(
-                time=beat_tick, type="note_on", channel=ch,
-                pitch=pitch, velocity=velocity, value=0
-            ))
-            events.append(MidiEvent(
-                time=off_tick, type="note_off", channel=ch,
-                pitch=pitch, velocity=0, value=0
-            ))
+            events.append(
+                MidiEvent(
+                    time=beat_tick,
+                    type="note_on",
+                    channel=ch,
+                    pitch=pitch,
+                    velocity=velocity,
+                    value=0,
+                )
+            )
+            events.append(
+                MidiEvent(
+                    time=off_tick, type="note_off", channel=ch, pitch=pitch, velocity=0, value=0
+                )
+            )
 
         return events
 
     @classmethod
-    def generate_for_song(cls, song, track_index: int,
-                          config: MetronomeConfig,
-                          expanded_indices: Optional[List[int]] = None,
-                          ticks_per_beat: int = 480) -> List[MidiEvent]:
+    def generate_for_song(
+        cls,
+        song,
+        track_index: int,
+        config: MetronomeConfig,
+        expanded_indices: list[int] | None = None,
+        ticks_per_beat: int = 480,
+    ) -> list[MidiEvent]:
         """
         根据 GTPSong 生成节拍器事件
 
@@ -199,7 +220,7 @@ class MetronomeGenerator:
         返回:
           按时间排序的节拍器 MIDI 事件列表
         """
-        events: List[MidiEvent] = []
+        events: list[MidiEvent] = []
 
         if not config.enabled or not song or not song.tracks:
             return events
@@ -215,6 +236,7 @@ class MetronomeGenerator:
         # 如果没有传入展开序列，使用线性顺序
         if expanded_indices is None:
             from .midi_converter import MidiConverter
+
             expanded_indices = MidiConverter.expand_measure_indices(measures)
 
         bpm = getattr(song, 'tempo', 120) or 120
@@ -238,24 +260,31 @@ class MetronomeGenerator:
             measure_ticks = int(numerator * ticks_per_single_beat)
 
             # 第一拍重拍，其余普通拍
-            events.extend(cls._generate_beats(
-                start_tick=current_tick,
-                beat_count=numerator,
-                ticks_per_beat=ticks_per_single_beat,
-                bpm=bpm,
-                config=config,
-                accent_first=True
-            ))
+            events.extend(
+                cls._generate_beats(
+                    start_tick=current_tick,
+                    beat_count=numerator,
+                    ticks_per_beat=ticks_per_single_beat,
+                    bpm=bpm,
+                    config=config,
+                    accent_first=True,
+                )
+            )
 
             current_tick += measure_ticks
 
         return events
 
     @classmethod
-    def generate_simple(cls, bpm: int, numerator: int, denominator: int,
-                        total_ticks: int,
-                        ticks_per_beat: int,
-                        config: MetronomeConfig) -> List[MidiEvent]:
+    def generate_simple(
+        cls,
+        bpm: int,
+        numerator: int,
+        denominator: int,
+        total_ticks: int,
+        ticks_per_beat: int,
+        config: MetronomeConfig,
+    ) -> list[MidiEvent]:
         """
         根据手动指定的 BPM/拍号生成固定长度的节拍器事件
 
@@ -270,7 +299,7 @@ class MetronomeGenerator:
         返回:
           按时间排序的节拍器 MIDI 事件列表
         """
-        events: List[MidiEvent] = []
+        events: list[MidiEvent] = []
 
         if not config.enabled or bpm <= 0 or numerator <= 0 or denominator <= 0:
             return events
@@ -286,19 +315,20 @@ class MetronomeGenerator:
         current_tick = 0
         while current_tick < total_ticks:
             remaining_ticks = total_ticks - current_tick
-            remaining_beats = min(numerator,
-                                  int(remaining_ticks / max(ticks_per_single_beat, 1)))
+            remaining_beats = min(numerator, int(remaining_ticks / max(ticks_per_single_beat, 1)))
             if remaining_beats <= 0:
                 break
 
-            events.extend(cls._generate_beats(
-                start_tick=current_tick,
-                beat_count=remaining_beats,
-                ticks_per_beat=ticks_per_single_beat,
-                bpm=bpm,
-                config=config,
-                accent_first=True
-            ))
+            events.extend(
+                cls._generate_beats(
+                    start_tick=current_tick,
+                    beat_count=remaining_beats,
+                    ticks_per_beat=ticks_per_single_beat,
+                    bpm=bpm,
+                    config=config,
+                    accent_first=True,
+                )
+            )
 
             current_tick += measure_ticks
 

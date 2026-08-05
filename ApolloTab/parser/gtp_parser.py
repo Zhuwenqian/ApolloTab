@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: gtp_parser.py
@@ -17,19 +16,21 @@
 ============================================================
 """
 
-import guitarpro
 from typing import List, Optional
 
+import guitarpro
+
+from ..models.beat import GTPBeat
+from ..models.chord import Chord
+from ..models.measure import GTPMeasure
+from ..models.note import BendData, GTPNote
 from ..models.song import GTPSong
 from ..models.track import GTPTrack
-from ..models.measure import GTPMeasure
-from ..models.beat import GTPBeat
-from ..models.note import GTPNote, BendData
-from ..models.chord import Chord
 from ..utils.constants import (
-    NoteDuration, TechniqueType, DURATION_RATIO,
+    DURATION_RATIO,
+    NoteDuration,
+    TechniqueType,
 )
-
 
 # ============================================================
 # GP3-5 和弦映射辅助 (v1.4.0 新增)
@@ -41,34 +42,34 @@ from ..utils.constants import (
 
 # PitchClass.value (0-11) -> 可读名. 跟随 chord.sharp 决定升降号方向.
 _PITCH_SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-_PITCH_FLAT_NAMES  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+_PITCH_FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 
 # PyGuitarPro ChordType (15 种) -> ApolloTab suffix
 # 注意: PyGuitarPro 的 type 字段已包含 7/maj7/sus4 等, ChordExtension 仅追加 9/11/13.
 _GP3_TYPE_SUFFIX = {
-    'major':                   '',
-    'seventh':                 '7',
-    'majorSeventh':            'maj7',
-    'sixth':                   '6',
-    'minor':                   'm',
-    'minorSeventh':            'm7',
-    'minorMajor':              'm(maj7)',
-    'minorSixth':              'm6',
-    'suspendedSecond':         'sus2',
-    'suspendedFourth':         'sus4',
-    'seventhSuspendedSecond':  '7sus2',
-    'seventhSuspendedFourth':  '7sus4',
-    'diminished':              'dim',
-    'augmented':               'aug',
-    'power':                   '5',
+    'major': '',
+    'seventh': '7',
+    'majorSeventh': 'maj7',
+    'sixth': '6',
+    'minor': 'm',
+    'minorSeventh': 'm7',
+    'minorMajor': 'm(maj7)',
+    'minorSixth': 'm6',
+    'suspendedSecond': 'sus2',
+    'suspendedFourth': 'sus4',
+    'seventhSuspendedSecond': '7sus2',
+    'seventhSuspendedFourth': '7sus4',
+    'diminished': 'dim',
+    'augmented': 'aug',
+    'power': '5',
 }
 
 # PyGuitarPro ChordExtension (4 种) -> ApolloTab extensions (附加 9/11/13)
 _GP3_EXT_EXTENSIONS = {
-    'none':        '',
-    'ninth':       '9',
-    'eleventh':    '11',
-    'thirteenth':  '13',
+    'none': '',
+    'ninth': '9',
+    'eleventh': '11',
+    'thirteenth': '13',
 }
 
 
@@ -85,7 +86,7 @@ def _pitch_class_to_name(pc, sharp: bool) -> str:
     return names[int(pc.value) % 12]
 
 
-def _convert_gp3_chord(gp_chord) -> Optional[Chord]:
+def _convert_gp3_chord(gp_chord) -> Chord | None:
     """PyGuitarPro Chord (GP3-5) -> ApolloTab Chord
 
     流程:
@@ -150,12 +151,12 @@ class GTPParser:
     #   25 = Steel Acoustic Guitar(钢弦吉他)
     #   29 = Overdriven Guitar(过载电吉他)
     NAME_BASED_INSTRUMENT_MAP = (
-        ('Nylon Guitar',      24),  # 尼龙弦吉他
-        ('Acoustic Guitar',   25),  # 钢弦吉他
-        ('Steel Guitar',      25),  # 钢弦吉他
+        ('Nylon Guitar', 24),  # 尼龙弦吉他
+        ('Acoustic Guitar', 25),  # 钢弦吉他
+        ('Steel Guitar', 25),  # 钢弦吉他
         ('Overdriven Guitar', 29),  # 过载电吉他
-        ('Piano',              0),  # 钢琴
-        ('Keyboard',           0),  # 键盘(分配钢琴音色)
+        ('Piano', 0),  # 钢琴
+        ('Keyboard', 0),  # 键盘(分配钢琴音色)
     )
 
     # 鼓轨识别关键词(本地定义,避免与 audio.midi_converter 形成循环依赖)
@@ -170,19 +171,19 @@ class GTPParser:
     def parse(self, file_path: str) -> GTPSong:
         """
         解析Guitar Pro文件
-        
+
         参数:
             file_path: .gp3/.gp4/.gp5/.gpx 文件路径
-            
+
         返回:
             GTPSong 中介数据模型，包含完整的乐谱信息
-            
+
         异常:
             GPException: 文件格式错误或无法解析时抛出
         """
         # 使用 PyGuitarPro 库解析原始文件
         raw_song = guitarpro.parse(file_path)
-        
+
         # 转换为中介模型
         return self._convert_song(raw_song)
 
@@ -199,12 +200,12 @@ class GTPParser:
             copyright=raw_song.copyright or "",
             instructions=raw_song.instructions or "",
         )
-        
+
         # 转换所有音轨
         for raw_track in raw_song.tracks:
             track = self._convert_track(raw_track, raw_song)
             song.tracks.append(track)
-        
+
         return song
 
     def _convert_key(self, key_sig) -> int:
@@ -219,21 +220,36 @@ class GTPParser:
             elif hasattr(key_sig, 'name'):
                 # 从名称推断: CMajor=0, GMajor=1(1升), etc.
                 name_map = {
-                    'CMajor': 0, 'AMinor': 0,
-                    'GMajor': 1, 'EMinor': 1,
-                    'DMajor': 2, 'BMinor': 2,
-                    'AMajor': 3, 'FSharpMinor': 3,
-                    'EMajor': 4, 'CSharpMinor': 4,
-                    'BMajor': 5, 'GSharpMinor': 5,
-                    'FSharpMajor': 6, 'DSharpMinor': 6,
-                    'CSharpMajor': 7, 'ASharpMinor': 7,
-                    'FMajor': -1, 'DMinor': -1,
-                    'BFlatMajor': -2, 'GMinor': -2,
-                    'EFlatMajor': -3, 'CMinor': -3,
-                    'AFlatMajor': -4, 'FMinor': -4,
-                    'DFlatMajor': -5, 'BFlatMinor': -5,
-                    'GFlatMajor': -6, 'EFlatMinor': -6,
-                    'CFlatMajor': -7, 'AFlatMinor': -7,
+                    'CMajor': 0,
+                    'AMinor': 0,
+                    'GMajor': 1,
+                    'EMinor': 1,
+                    'DMajor': 2,
+                    'BMinor': 2,
+                    'AMajor': 3,
+                    'FSharpMinor': 3,
+                    'EMajor': 4,
+                    'CSharpMinor': 4,
+                    'BMajor': 5,
+                    'GSharpMinor': 5,
+                    'FSharpMajor': 6,
+                    'DSharpMinor': 6,
+                    'CSharpMajor': 7,
+                    'ASharpMinor': 7,
+                    'FMajor': -1,
+                    'DMinor': -1,
+                    'BFlatMajor': -2,
+                    'GMinor': -2,
+                    'EFlatMajor': -3,
+                    'CMinor': -3,
+                    'AFlatMajor': -4,
+                    'FMinor': -4,
+                    'DFlatMajor': -5,
+                    'BFlatMinor': -5,
+                    'GFlatMajor': -6,
+                    'EFlatMinor': -6,
+                    'CFlatMajor': -7,
+                    'AFlatMinor': -7,
                 }
                 return name_map.get(key_sig.name, 0)
             return 0
@@ -241,7 +257,7 @@ class GTPParser:
             return 0
 
     @classmethod
-    def _infer_instrument_from_name(cls, track_name: str) -> Optional[int]:
+    def _infer_instrument_from_name(cls, track_name: str) -> int | None:
         """
         根据音轨名称推断 MIDI 乐器编号
 
@@ -281,8 +297,9 @@ class GTPParser:
 
         return None
 
-    def _convert_track(self, raw_track: guitarpro.models.Track,
-                       raw_song: guitarpro.models.Song) -> GTPTrack:
+    def _convert_track(
+        self, raw_track: guitarpro.models.Track, raw_song: guitarpro.models.Song
+    ) -> GTPTrack:
         """转换音轨对象"""
         # 提取调弦信息 (MIDI音高值列表)
         tuning = tuple(s.value for s in raw_track.strings)
@@ -313,29 +330,28 @@ class GTPParser:
             is_solo=raw_track.isSolo,
             is_mute=raw_track.isMute,
         )
-        
+
         # 转换该轨道的所有小节
         for mi, raw_measure in enumerate(raw_track.measures):
             measure = self._convert_measure(raw_measure, mi + 1)
             track.measures.append(measure)
-        
+
         return track
 
-    def _convert_measure(self, raw_measure: guitarpro.models.Measure, 
-                         number: int) -> GTPMeasure:
+    def _convert_measure(self, raw_measure: guitarpro.models.Measure, number: int) -> GTPMeasure:
         """转换小节对象"""
         hdr = raw_measure.header
         ts = hdr.timeSignature
-        
+
         # 拍号提取
         numerator = ts.numerator if ts.numerator else 4
         denominator = ts.denominator.value if ts.denominator else 4
-        
+
         # 段落标记
         marker = None
         if hdr.marker and hdr.marker.title:
             marker = hdr.marker.title
-        
+
         measure = GTPMeasure(
             number=number,
             time_signature=(numerator, denominator),
@@ -344,13 +360,13 @@ class GTPParser:
             marker=marker,
             key_signature=self._convert_key(hdr.keySignature),
         )
-        
+
         # 转换该小节的所有声部(Voice)和拍(Beat)
         for voice in raw_measure.voices:
             for raw_beat in voice.beats:
                 beat = self._convert_beat(raw_beat)
                 measure.beats.append(beat)
-        
+
         return measure
 
     def _convert_beat(self, raw_beat: guitarpro.models.Beat) -> GTPBeat:
@@ -381,53 +397,55 @@ class GTPParser:
 
         return beat
 
-    def _convert_note(self, raw_note: guitarpro.models.Note,
-                      duration: NoteDuration, is_dotted: bool) -> GTPNote:
+    def _convert_note(
+        self, raw_note: guitarpro.models.Note, duration: NoteDuration, is_dotted: bool
+    ) -> GTPNote:
         """
         转换单个音符对象
         这是技巧信息提取的核心方法
         """
         effect = raw_note.effect
-        
+
         note = GTPNote(
-            midi_pitch=raw_note.realValue,     # 实际MIDI音高
-            string=raw_note.string - 1,         # 弦号(PyGuitarPro是1-based, 转为0-based: 0=1弦顶线, 5=6弦底线)
-            fret=raw_note.value,                 # 品格数
-            velocity=raw_note.velocity,          # 力度
+            midi_pitch=raw_note.realValue,  # 实际MIDI音高
+            string=raw_note.string
+            - 1,  # 弦号(PyGuitarPro是1-based, 转为0-based: 0=1弦顶线, 5=6弦底线)
+            fret=raw_note.value,  # 品格数
+            velocity=raw_note.velocity,  # 力度
             duration=duration,
             is_dotted=is_dotted,
-            is_ghost=effect.ghostNote,           # 幽灵音标记
+            is_ghost=effect.ghostNote,  # 幽灵音标记
         )
-        
+
         # ===== 技巧信息提取 =====
         # 击弦 Hammer-on
         if effect.hammer:
             note.add_technique(TechniqueType.HAMMER_ON)
-        
+
         # 颤音 Vibrato
         if effect.vibrato:
             note.add_technique(TechniqueType.VIBRATO)
-        
+
         # 闷音 Palm Mute
         if effect.palmMute:
             note.add_technique(TechniqueType.PALM_MUTE)
-        
+
         # 断奏 Staccato
         if effect.staccato:
             note.add_technique(TechniqueType.STACCATO)
-        
+
         # 延音 Let Ring
         if effect.letRing:
             note.add_technique(TechniqueType.LET_RING)
-        
+
         # 重音 Accentuated
         if effect.accentuatedNote:
             note.add_technique(TechniqueType.ACCENTUATED)
-        
+
         # 强重音 Heavy Accentuated
         if effect.heavyAccentuatedNote:
             note.add_technique(TechniqueType.ACCENTUATED)
-        
+
         # 推弦 Bend - 提取完整推弦数据(类型/度数/曲线点)
         if effect.bend:
             note.add_technique(TechniqueType.BEND)
@@ -443,17 +461,17 @@ class GTPParser:
                 points.append((p_pos, p_val, p_vib))
                 if p_val > max_val:
                     max_val = p_val
-            
+
             # 获取推弦类型名称
             btype_name = str(b.type) if hasattr(b.type, 'name') else str(getattr(b, 'type', 'bend'))
-            
+
             note.bend = BendData(
                 bend_type=btype_name,
                 value=getattr(b, 'value', 0),
                 max_value=max_val or getattr(b, 'maxValue', 0),
-                points=points
+                points=points,
             )
-        
+
         # 滑音 Slides (支持多个滑音方向)
         for slide in effect.slides:
             slide_name = slide.name if hasattr(slide, 'name') else str(slide)
@@ -466,7 +484,7 @@ class GTPParser:
                 pass
             elif 'shift' in slide_name.lower():
                 note.add_technique(TechniqueType.SLIDE_UP)
-        
+
         # 泛音 Harmonic
         if effect.harmonic and effect.harmonic.type:
             harm_type = effect.harmonic.type
@@ -483,19 +501,19 @@ class GTPParser:
                 note.add_technique(TechniqueType.NATURAL_HARMONIC)
             else:
                 note.add_technique(TechniqueType.NATURAL_HARMONIC)
-        
+
         # 震音拨弦 Tremolo Picking
         if effect.tremoloPicking:
             note.add_technique(TechniqueType.TREMOLO_PICKING)
-        
+
         # 颤音 Trill
         if effect.trill:
             note.add_technique(TechniqueType.TRILL)
-        
+
         # 装饰音 Grace Note
         if effect.grace:
             note.add_technique(TechniqueType.GRACE_NOTE)
-        
+
         return note
 
     @staticmethod
@@ -519,16 +537,17 @@ class GTPParser:
 # 便捷函数
 # ============================================================
 
+
 def parse_gtp(file_path: str) -> GTPSong:
     """
     便捷函数：解析Guitar Pro文件并返回中介数据模型
-    
+
     参数:
         file_path: .gp3/.gp4/.gp5/.gpx 文件路径
-        
+
     返回:
         GTPSong 对象
-        
+
     示例:
         >>> from gtp_engine.parser import parse_gtp
         >>> song = parse_gtp("my_song.gp5")

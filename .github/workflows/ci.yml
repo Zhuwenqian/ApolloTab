@@ -1,0 +1,97 @@
+# ============================================================
+# ApolloTab CI (v1.4.1)
+# 触发: push main / PR; 并发取消旧运行
+# 矩阵: Python 3.11/3.12/3.13 × ubuntu-latest/macos-latest
+# Jobs:
+#   lint  - ruff format --check + ruff check (单版本 ubuntu)
+#   test  - pytest + coverage(40%门槛) + codecov 上传
+# 依赖策略 (Q2/b):
+#   - pip install -e .[dev]  (装 pyguitarpro + pyfluidsynth + ruff + pytest 等)
+#   - pip install PyQt5      (PyQt5 不在 pyproject，单独 pip 装)
+#   - FluidSynth 系统库不装; audio 模块未写测试，import pyfluidsynth 不需系统库
+# 样本 (Q6): guitarpro7/ 真实 .gp 文件; 未提交时端到端测试自动 skip
+# ruff (Q4/a): CI 只检查不改源码，失败即红 (逼后续修); F401 全局忽略
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 并发控制: 同一分支/PR 多次 push 取消旧的运行
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # Job 1: Lint (ruff format + ruff check)
+  # ============================================================
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install "ruff>=0.6"
+
+      - name: ruff format --check
+        # 格式必须通过 (源码已 ruff format 过)
+        run: ruff format --check ApolloTab
+
+      - name: ruff check
+        # Q4/a: 只检查不改源码，失败即红。
+        # 当前源码有预存 lint 告警 (UP035/SIM105/F821/F841 等)，此步骤会失败，
+        # 需逐步修复后转绿。F401 (unused-import) 已在 pyproject 全局忽略。
+        run: ruff check ApolloTab
+
+  # ============================================================
+  # Job 2: Test (pytest + coverage + codecov)
+  # ============================================================
+  test:
+    name: Test (py${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package + dev deps
+        # editable 安装: 装核心依赖 (pyguitarpro/pyfluidsynth) + dev (pytest/ruff/cov/mypy)
+        run: pip install -e ".[dev]"
+
+      - name: Install PyQt5
+        # PyQt5 不在 pyproject (ARM 需 apt 软链)，CI 上直接 pip 装
+        run: pip install PyQt5
+
+      - name: Run tests with coverage
+        # QT_QPA_PLATFORM=offscreen: 无头环境渲染友好
+        # --cov-report=xml: 生成 coverage.xml 供 codecov 上传
+        # --cov-fail-under=40: 覆盖率门槛 (pyproject addopts 已含，此处追加 xml)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        # Q7: 上传覆盖率到 codecov; 上传失败不阻断 CI
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          verbose: true

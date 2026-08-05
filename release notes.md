@@ -1,7 +1,7 @@
 # ApolloTab Release Notes
 
 The entries below cover all commits from `7152997` through `0ed11ad`.
-Contributors: LiJingrong123456
+Contributor: LiJingrong123456
 
 ## Overview
 

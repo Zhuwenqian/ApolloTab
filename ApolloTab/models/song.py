@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: song.py
@@ -12,7 +11,8 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from .track import GTPTrack
 
 
@@ -44,25 +44,25 @@ class GTPSong:
       default_systems_layout: 默认每页系统数（GP7 ScoreSystemsDefaultLayout）
     """
 
-    title: str = ""                           # 歌曲标题
-    artist: str = ""                          # 艺术家
-    album: str = ""                           # 专辑
-    tempo: int = 120                          # BPM速度
-    tempo_name: str = ""                      # 速度标记名
-    key: int = 0                              # 全局调号
-    subtitle: str = ""                        # 副标题
-    copyright: str = ""                       # 版权信息
-    instructions: str = ""                    # 演奏说明
-    tracks: List[GTPTrack] = field(default_factory=list)  # 音轨列表
+    title: str = ""  # 歌曲标题
+    artist: str = ""  # 艺术家
+    album: str = ""  # 专辑
+    tempo: int = 120  # BPM速度
+    tempo_name: str = ""  # 速度标记名
+    key: int = 0  # 全局调号
+    subtitle: str = ""  # 副标题
+    copyright: str = ""  # 版权信息
+    instructions: str = ""  # 演奏说明
+    tracks: list[GTPTrack] = field(default_factory=list)  # 音轨列表
 
     # === GP7/GP8 扩展字段 (v0.4.0) ===
-    gp_version: str = ""                      # 文件版本 ("7.0"/"8.0")
-    words: str = ""                           # 作词者
-    music: str = ""                           # 作曲者
-    tabber: str = ""                          # 制谱者
-    notices: str = ""                         # 附加说明
-    stylesheet: Optional[Dict[str, Any]] = None  # BinaryStylesheet 解析结果
-    default_systems_layout: int = 3           # 默认每页系统数
+    gp_version: str = ""  # 文件版本 ("7.0"/"8.0")
+    words: str = ""  # 作词者
+    music: str = ""  # 作曲者
+    tabber: str = ""  # 制谱者
+    notices: str = ""  # 附加说明
+    stylesheet: dict[str, Any] | None = None  # BinaryStylesheet 解析结果
+    default_systems_layout: int = 3  # 默认每页系统数
 
     @property
     def track_count(self) -> int:
@@ -70,7 +70,7 @@ class GTPSong:
         return len(self.tracks)
 
     @property
-    def visible_tracks(self) -> List[GTPTrack]:
+    def visible_tracks(self) -> list[GTPTrack]:
         """获取所有可见音轨"""
         return [t for t in self.tracks if t.is_visible]
 
@@ -81,14 +81,14 @@ class GTPSong:
             return self.tracks[0].total_measures
         return 0
 
-    def get_track_by_name(self, name: str) -> Optional[GTPTrack]:
+    def get_track_by_name(self, name: str) -> GTPTrack | None:
         """按名称查找音轨"""
         for track in self.tracks:
             if track.name.lower() == name.lower():
                 return track
         return None
 
-    def get_primary_guitar_track(self) -> Optional[GTPTrack]:
+    def get_primary_guitar_track(self) -> GTPTrack | None:
         """
         获取主要吉他轨道（优先选择可见的非打击乐轨道）
         策略: 第一个可见的电吉他/木吉他轨道

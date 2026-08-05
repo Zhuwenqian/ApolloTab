@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: measure.py
@@ -13,6 +12,7 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
+
 from .beat import GTPBeat
 
 
@@ -39,21 +39,21 @@ class GTPMeasure:
       section_text:      段落文本（GP7 Section，比 marker 更结构化）
     """
 
-    number: int = 0                                    # 小节序号
-    beats: List[GTPBeat] = field(default_factory=list)  # 拍列表
-    time_signature: Tuple[int, int] = (4, 4)           # 拍号
-    is_repeat_open: bool = False                       # 反复起始
-    repeat_close: int = -1                             # 反复结束次数(-1=无)
-    marker: Optional[str] = None                       # 段落标记
-    key_signature: int = 0                             # 调号
+    number: int = 0  # 小节序号
+    beats: list[GTPBeat] = field(default_factory=list)  # 拍列表
+    time_signature: tuple[int, int] = (4, 4)  # 拍号
+    is_repeat_open: bool = False  # 反复起始
+    repeat_close: int = -1  # 反复结束次数(-1=无)
+    marker: str | None = None  # 段落标记
+    key_signature: int = 0  # 调号
 
     # === GP7/GP8 扩展字段 (v0.4.0) ===
-    is_anacrusis: bool = False                         # 弱起小节
-    alternate_endings: int = 0                         # 反复交替结束位标志
-    triplet_feel: Optional[str] = None                 # 三连音感
-    is_double_bar: bool = False                        # 双竖线
-    directions: List[str] = field(default_factory=list)  # 跳转方向标记
-    section_text: Optional[str] = None                 # 段落文本(GP7 Section)
+    is_anacrusis: bool = False  # 弱起小节
+    alternate_endings: int = 0  # 反复交替结束位标志
+    triplet_feel: str | None = None  # 三连音感
+    is_double_bar: bool = False  # 双竖线
+    directions: list[str] = field(default_factory=list)  # 跳转方向标记
+    section_text: str | None = None  # 段落文本(GP7 Section)
 
     @property
     def total_duration(self) -> float:

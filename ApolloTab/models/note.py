@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: note.py
@@ -16,15 +15,16 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Any
-from ..utils.constants import TechniqueType, NoteDuration, BendStyle
+from typing import Any, List, Optional
+
+from ..utils.constants import BendStyle, NoteDuration, TechniqueType
 
 
 @dataclass
 class BendData:
     """
     推弦(Bend)详细数据 - 存储从GTP文件解析的完整推弦信息
-    
+
     属性说明:
       bend_type:    推弦类型 ('bend'=普通推弦, 'bendRelease'=推弦+释放)
       value:        推弦量(四分之一音为单位): 25=1/4, 50=1/2, 75=3/4, 100=Full
@@ -33,30 +33,35 @@ class BendData:
                     position: 时间位置(0-12, 相对该拍的比例)
                     value: 音高偏移(四分之一音)
       has_release:  是否有释放段(终点value < 峰值)
-    
+
     调用来源: guitarpro库的BendEffect对象 (开源项目 guitarpro)
     """
-    bend_type: str = "bend"           # 推弦类型
+
+    bend_type: str = "bend"  # 推弦类型
     bend_style: BendStyle = BendStyle.DEFAULT  # 推弦风格(影响渲染曲线弧度)
-    value: int = 0                    # 推弦量
-    max_value: int = 0                # 峰值
+    value: int = 0  # 推弦量
+    max_value: int = 0  # 峰值
     points: list = field(default_factory=list)  # [(pos, val, vibrato), ...]
-    
+
     @property
     def has_release(self) -> bool:
         """是否有释放段（终点value低于峰值）"""
         if not self.points:
             return False
-        last_val = self.points[-1][1] if isinstance(self.points[-1], tuple) else getattr(self.points[-1], 'value', 0)
+        last_val = (
+            self.points[-1][1]
+            if isinstance(self.points[-1], tuple)
+            else getattr(self.points[-1], 'value', 0)
+        )
         return last_val < self.max_value and self.max_value > 0
-    
+
     def get_display_text(self) -> str:
         """
         获取推弦度数显示文字
-        
+
         返回值映射:
           25  → "1/4"
-          50  → "1/2"  
+          50  → "1/2"
           75  → "3/4"
           100 → "Full"
           其他 → "Full"(默认)
@@ -109,36 +114,38 @@ class GTPNote:
       is_percussion:       是否打击乐音符（用于 midi_converter 鼓轨识别）
     """
 
-    midi_pitch: int = 0              # MIDI音高值
-    string: int = 0                  # 弦号 (0-5)
-    fret: int = 0                    # 品格数
-    velocity: int = 95               # 力度 (0-127, 默认95=mf中强)
+    midi_pitch: int = 0  # MIDI音高值
+    string: int = 0  # 弦号 (0-5)
+    fret: int = 0  # 品格数
+    velocity: int = 95  # 力度 (0-127, 默认95=mf中强)
     duration: NoteDuration = NoteDuration.QUARTER  # 时值
-    is_dotted: bool = False          # 是否附点
-    techniques: List[TechniqueType] = field(default_factory=list)  # 技巧列表
-    bend: Optional[BendData] = None   # 推弦详细数据(仅推弦音符有值)
-    is_ghost: bool = False           # 幽灵音标记
-    is_rest: bool = False            # 休止符标记
+    is_dotted: bool = False  # 是否附点
+    techniques: list[TechniqueType] = field(default_factory=list)  # 技巧列表
+    bend: BendData | None = None  # 推弦详细数据(仅推弦音符有值)
+    is_ghost: bool = False  # 幽灵音标记
+    is_rest: bool = False  # 休止符标记
 
     # === GP7/GP8 扩展字段 (v0.4.0) ===
-    is_tie_destination: bool = False       # 连音目标音符
-    is_hammer_pull_origin: bool = False    # 击弦/勾弦起始
-    is_palm_mute: bool = False             # 闷音 (GP7显式标记)
-    is_dead: bool = False                  # Dead note 闷音弹奏
-    is_let_ring: bool = False              # Let Ring 延音 (GP7显式标记)
-    is_staccato: bool = False              # 断奏 (GP7显式标记)
-    is_tenuto: bool = False                # 保持音
-    accentuated_type: int = 0              # 重音类型: 0=无, 1=Normal, 2=Heavy
-    harmonic_type: Optional[str] = None    # 泛音类型: None/Natural/Artificial/Pinch/Tap/Semi/Feedback
-    harmonic_value: float = 0.0            # 泛音品位
-    trill_value: int = 0                   # 颤音音程 (MIDI偏移)
+    is_tie_destination: bool = False  # 连音目标音符
+    is_hammer_pull_origin: bool = False  # 击弦/勾弦起始
+    is_palm_mute: bool = False  # 闷音 (GP7显式标记)
+    is_dead: bool = False  # Dead note 闷音弹奏
+    is_let_ring: bool = False  # Let Ring 延音 (GP7显式标记)
+    is_staccato: bool = False  # 断奏 (GP7显式标记)
+    is_tenuto: bool = False  # 保持音
+    accentuated_type: int = 0  # 重音类型: 0=无, 1=Normal, 2=Heavy
+    harmonic_type: str | None = None  # 泛音类型: None/Natural/Artificial/Pinch/Tap/Semi/Feedback
+    harmonic_value: float = 0.0  # 泛音品位
+    trill_value: int = 0  # 颤音音程 (MIDI偏移)
     trill_speed: NoteDuration = NoteDuration.SIXTEENTH  # 颤音速度
-    slide_in_type: Optional[str] = None    # 滑入类型: IntoFromBelow/IntoFromAbove
-    slide_out_type: Optional[str] = None   # 滑出类型: Shift/Legato/OutDown/OutUp/PickSlideDown/PickSlideUp
-    left_hand_finger: int = 0              # 左手指法: 0=未知/1=P拇指/2=I食指/3=M中指/4=A无名指/5=C小指
-    right_hand_finger: int = 0             # 右手指法: 同上
-    percussion_articulation: int = -1      # 打击乐编号 (非打击乐为-1)
-    is_percussion: bool = False            # 是否打击乐音符
+    slide_in_type: str | None = None  # 滑入类型: IntoFromBelow/IntoFromAbove
+    slide_out_type: str | None = (
+        None  # 滑出类型: Shift/Legato/OutDown/OutUp/PickSlideDown/PickSlideUp
+    )
+    left_hand_finger: int = 0  # 左手指法: 0=未知/1=P拇指/2=I食指/3=M中指/4=A无名指/5=C小指
+    right_hand_finger: int = 0  # 右手指法: 同上
+    percussion_articulation: int = -1  # 打击乐编号 (非打击乐为-1)
+    is_percussion: bool = False  # 是否打击乐音符
 
     def get_display_fret(self) -> str:
         """

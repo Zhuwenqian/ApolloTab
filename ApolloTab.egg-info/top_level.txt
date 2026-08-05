@@ -1,3 +1,4 @@
 ApolloTab
 dist
+guitarpro7
 readme

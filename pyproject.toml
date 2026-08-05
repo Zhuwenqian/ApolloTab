@@ -65,11 +65,11 @@ full = [
     "pyfluidsynth>=1.4.0",
 ]
 # 开发环境（测试、lint、构建）
+# v1.4.1: ruff 全权接管 lint + format，移除 black/isort
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "black>=23.0",
-    "isort>=5.12",
+    "ruff>=0.6",
     "mypy>=1.0",
     "build>=0.10",
     "twine>=4.0",
@@ -90,15 +90,53 @@ exclude = ["venv*", "tests*", "__pycache__*"]
 [tool.setuptools.package-data]
 "ApolloTab" = ["*.pyi", "py.typed"]
 
-# 黑代码格式化配置
-[tool.black]
+# ============================================================
+# ruff 配置 (v1.4.1: 全权接管 lint + format，替代 black/isort)
+# ============================================================
+[tool.ruff]
 line-length = 100
-target-version = ["py38"]
+target-version = "py311"
+extend-exclude = ["venv", "dist", "build", "ApolloTab.egg-info"]
 
-# isort导入排序配置
-[tool.isort]
-profile = "black"
-line_length = 100
+[tool.ruff.lint]
+# 规则集选择:
+#   E/W = pycodestyle (PEP8 风格)
+#   F   = Pyflakes (逻辑错误，未使用变量等)
+#   I   = isort (导入排序，替代独立 isort 工具)
+#   UP  = pyupgrade (现代化语法)
+#   B   = flake8-bugbear (常见陷阱)
+#   SIM = flake8-simplify (代码简化)
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",   # 行过长: 由 ruff format 处理换行，不强制 lint 报错(存量代码有长行)
+    "F401",   # 未使用 import: 本库为公开发布库，__init__.py 的 re-export 与公共 API 难以静态判定使用方，故全局忽略
+    "E741",   # 模糊变量名(l/I/O): 音乐领域单字母变量常见(如弦序 i)，暂忽略
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试文件允许使用魔法值、断言、较长函数
+"ApolloTab/tests/*" = ["E402", "B011"]
+
+[tool.ruff.format]
+# 与原 black 风格保持一致，平滑过渡
+quote-style = "preserve"
+indent-style = "space"
+docstring-code-format = false
+
+# ============================================================
+# pytest 配置 (v1.4.1 新增)
+# ============================================================
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["ApolloTab/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# coverage: 测 ApolloTab 包，终端输出缺失行，未达 40% 则失败
+addopts = "-ra --cov=ApolloTab --cov-report=term-missing --cov-fail-under=40"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
 # mypy类型检查配置
 [tool.mypy]

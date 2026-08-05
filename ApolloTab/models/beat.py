@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: beat.py
@@ -13,9 +12,10 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional
-from .note import GTPNote
-from .chord import Chord
+
 from ..utils.constants import NoteDuration
+from .chord import Chord
+from .note import GTPNote
 
 
 @dataclass
@@ -48,28 +48,28 @@ class GTPBeat:
       wah_pedal:         哇音踏板 (None/Open/Closed)
     """
 
-    notes: List[GTPNote] = field(default_factory=list)  # 音符列表（同时发声）
-    duration: NoteDuration = NoteDuration.QUARTER        # 时值
-    is_dotted: bool = False                              # 是否附点
-    text: Optional[str] = None                           # 文字标注
-    is_rest: bool = False                                # 是否休止符
-    chord: Optional[Chord] = None                        # 和弦 (v1.4.0 新增)
+    notes: list[GTPNote] = field(default_factory=list)  # 音符列表（同时发声）
+    duration: NoteDuration = NoteDuration.QUARTER  # 时值
+    is_dotted: bool = False  # 是否附点
+    text: str | None = None  # 文字标注
+    is_rest: bool = False  # 是否休止符
+    chord: Chord | None = None  # 和弦 (v1.4.0 新增)
 
     # === GP7/GP8 扩展字段 (v0.4.0) ===
-    dynamics: Optional[str] = None                       # 力度标记: PPP/PP/P/MP/MF/F/FF/FFF
-    tuplet_numerator: int = -1                           # 连音分子(-1=无)
-    tuplet_denominator: int = -1                         # 连音分母(-1=无)
-    brush_type: Optional[str] = None                     # 扫弦方向: Up/Down
-    brush_duration: int = 0                              # 扫弦总时长(tick)
-    grace_type: Optional[str] = None                     # 装饰音: OnBeat/BeforeBeat
-    ottava: Optional[str] = None                         # 八度移调: 8va/15ma/8vb/15mb
-    fade: Optional[str] = None                           # 淡入淡出: FadeIn/FadeOut/VolumeSwell
-    crescendo: Optional[str] = None                      # 渐强渐弱: Crescendo/Decrescendo
-    tremolo_picking: Optional[int] = None                # 震音拨弦: 2/4/8 (1线/2线/3线)
-    is_dead_slapped: bool = False                        # Dead Slapped 标记
-    lyrics: Optional[List[str]] = None                   # 逐拍歌词列表
-    is_slashed: bool = False                             # 斜线谱标记
-    wah_pedal: Optional[str] = None                      # 哇音踏板: Open/Closed
+    dynamics: str | None = None  # 力度标记: PPP/PP/P/MP/MF/F/FF/FFF
+    tuplet_numerator: int = -1  # 连音分子(-1=无)
+    tuplet_denominator: int = -1  # 连音分母(-1=无)
+    brush_type: str | None = None  # 扫弦方向: Up/Down
+    brush_duration: int = 0  # 扫弦总时长(tick)
+    grace_type: str | None = None  # 装饰音: OnBeat/BeforeBeat
+    ottava: str | None = None  # 八度移调: 8va/15ma/8vb/15mb
+    fade: str | None = None  # 淡入淡出: FadeIn/FadeOut/VolumeSwell
+    crescendo: str | None = None  # 渐强渐弱: Crescendo/Decrescendo
+    tremolo_picking: int | None = None  # 震音拨弦: 2/4/8 (1线/2线/3线)
+    is_dead_slapped: bool = False  # Dead Slapped 标记
+    lyrics: list[str] | None = None  # 逐拍歌词列表
+    is_slashed: bool = False  # 斜线谱标记
+    wah_pedal: str | None = None  # 哇音踏板: Open/Closed
 
     @property
     def is_empty(self) -> bool:
@@ -87,7 +87,8 @@ class GTPBeat:
           五连音: numerator=5, denominator=4 → 时长 × (4/5)
           公式: base × (denominator / numerator)
         """
-        from ..utils.constants import DURATION_RATIO, DOTTED_MULTIPLIER
+        from ..utils.constants import DOTTED_MULTIPLIER, DURATION_RATIO
+
         base = DURATION_RATIO.get(self.duration.value, 1.0)
         if self.is_dotted:
             base *= DOTTED_MULTIPLIER

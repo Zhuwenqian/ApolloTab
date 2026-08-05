@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: gpif_parser.py
@@ -37,17 +36,17 @@
 
 import copy
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
+
+from ..models.beat import GTPBeat
+from ..models.chord import Chord
+from ..models.measure import GTPMeasure
+from ..models.note import BendData, GTPNote
 
 # 导入数据模型
 from ..models.song import GTPSong
 from ..models.track import GTPTrack, PercussionArticulation
-from ..models.measure import GTPMeasure
-from ..models.beat import GTPBeat
-from ..models.note import GTPNote, BendData
-from ..models.chord import Chord
-from ..utils.constants import NoteDuration, TechniqueType, BendType, BendStyle, VibratoType
-
+from ..utils.constants import BendStyle, BendType, NoteDuration, TechniqueType, VibratoType
 
 # ============================================================
 # 常量定义
@@ -65,7 +64,7 @@ _BEND_POINT_POSITION_FACTOR = 60.0 / 100.0
 _BEND_POINT_VALUE_FACTOR = 1.0 / 25.0
 
 # GPIF 升降号字符串 → 实际符号
-_CHORD_ACCIDENTAL_MAP: Dict[str, str] = {
+_CHORD_ACCIDENTAL_MAP: dict[str, str] = {
     'Natural': '',
     'Sharp': '#',
     'Flat': 'b',
@@ -78,14 +77,15 @@ _CHORD_ACCIDENTAL_MAP: Dict[str, str] = {
 # GPIF 内部数据结构（仅用于解析阶段暂存）
 # ============================================================
 
+
 class _GpifRhythm:
     """GPIF Rhythm 元素的临时存储结构（解析阶段使用）"""
 
     def __init__(self):
         self.rhythm_id: str = ''
-        self.dots: int = 0                          # 附点数量(0/1/2)
-        self.tuplet_numerator: int = -1             # 连音分子(-1=无)
-        self.tuplet_denominator: int = -1           # 连音分母(-1=无)
+        self.dots: int = 0  # 附点数量(0/1/2)
+        self.tuplet_numerator: int = -1  # 连音分子(-1=无)
+        self.tuplet_denominator: int = -1  # 连音分母(-1=无)
         self.duration: NoteDuration = NoteDuration.QUARTER  # 时值
 
 
@@ -93,15 +93,16 @@ class _GpifSound:
     """GPIF Sound 元素的临时存储结构（仅用于 MIDI 编号提取）"""
 
     def __init__(self):
-        self.program: int = 0                       # MIDI Program Change
-        self.bank: int = 0                          # MIDI Bank
+        self.program: int = 0  # MIDI Program Change
+        self.bank: int = 0  # MIDI Bank
 
 
 # ============================================================
 # 和弦解析辅助函数 (v1.4.0 新增)
 # ============================================================
 
-def _chord_note_name(note_el: Optional[ET.Element]) -> str:
+
+def _chord_note_name(note_el: ET.Element | None) -> str:
     """
     把 <KeyNote> 或 <BassNote> 节点转为可读名 (e.g. 'C', 'F#', 'Bb')
 
@@ -115,7 +116,7 @@ def _chord_note_name(note_el: Optional[ET.Element]) -> str:
     return step + _CHORD_ACCIDENTAL_MAP.get(acc, '')
 
 
-def _build_chord_from_xml(chord_el: ET.Element) -> Optional[Chord]:
+def _build_chord_from_xml(chord_el: ET.Element) -> Chord | None:
     """
     把一个 GPIF <Chord> 定义节点转换为 Chord 数据对象
 
@@ -138,7 +139,7 @@ def _build_chord_from_xml(chord_el: ET.Element) -> Optional[Chord]:
     bass_name = _chord_note_name(chord_el.find('BassNote'))
 
     # 收集 (interval, alteration) 映射
-    degree_map: Dict[str, str] = {}
+    degree_map: dict[str, str] = {}
     for d in chord_el.iter('Degree'):
         interval = d.get('interval', '')
         alt = d.get('alteration', '')
@@ -170,7 +171,7 @@ def _build_chord_from_xml(chord_el: ET.Element) -> Optional[Chord]:
     if suffix == 'sus4':
         return Chord(key=key_name, bass=bass_name, suffix='sus4', extensions='')
 
-    ext_parts: List[str] = []
+    ext_parts: list[str] = []
     # 13th 优先
     if 'Thirteenth' in degree_map:
         ext_parts.append('13' if degree_map['Thirteenth'] == 'Major' else 'b13')
@@ -181,10 +182,12 @@ def _build_chord_from_xml(chord_el: ET.Element) -> Optional[Chord]:
     if 'Sixth' in degree_map and degree_map['Sixth'] == 'Major' and '6' not in ext_parts:
         ext_parts.append('6')
     # 7th (被 6/13 抑制, 或 m7b5 已有 7 后缀)
-    if ('Seventh' in degree_map
-            and 'Thirteenth' not in degree_map
-            and 'Sixth' not in degree_map
-            and '7' not in suffix):
+    if (
+        'Seventh' in degree_map
+        and 'Thirteenth' not in degree_map
+        and 'Sixth' not in degree_map
+        and '7' not in suffix
+    ):
         seventh = degree_map['Seventh']
         if seventh == 'Major':
             ext_parts.append('maj7')
@@ -207,15 +210,15 @@ def _build_chord_from_xml(chord_el: ET.Element) -> Optional[Chord]:
 
 # GPIF NoteValue 文本 → NoteDuration 枚举
 _NOTE_VALUE_MAP = {
-    'Long': NoteDuration.WHOLE,           # 四倍全音符(按全音符处理)
-    'DoubleWhole': NoteDuration.WHOLE,    # 二倍全音符(按全音符处理)
-    'Whole': NoteDuration.WHOLE,          # 全音符
-    'Half': NoteDuration.HALF,            # 二分音符
-    'Quarter': NoteDuration.QUARTER,      # 四分音符
-    'Eighth': NoteDuration.EIGHTH,        # 八分音符
-    '16th': NoteDuration.SIXTEENTH,       # 十六分音符
-    '32nd': NoteDuration.THIRTY_SECOND,   # 三十二分音符
-    '64th': NoteDuration.THIRTY_SECOND,   # 六十四分音符(降级处理)
+    'Long': NoteDuration.WHOLE,  # 四倍全音符(按全音符处理)
+    'DoubleWhole': NoteDuration.WHOLE,  # 二倍全音符(按全音符处理)
+    'Whole': NoteDuration.WHOLE,  # 全音符
+    'Half': NoteDuration.HALF,  # 二分音符
+    'Quarter': NoteDuration.QUARTER,  # 四分音符
+    'Eighth': NoteDuration.EIGHTH,  # 八分音符
+    '16th': NoteDuration.SIXTEENTH,  # 十六分音符
+    '32nd': NoteDuration.THIRTY_SECOND,  # 三十二分音符
+    '64th': NoteDuration.THIRTY_SECOND,  # 六十四分音符(降级处理)
     '128th': NoteDuration.THIRTY_SECOND,  # 一百二十八分音符(降级)
     '256th': NoteDuration.THIRTY_SECOND,  # 二百五十六分音符(降级)
 }
@@ -223,13 +226,13 @@ _NOTE_VALUE_MAP = {
 # GPIF Dynamic 文本 → MIDI 力度值(0-127)
 # 调整效果: PPP=极弱 15, FF=极强 127，符合 GM 标准力度梯度
 _DYNAMIC_MAP = {
-    'PPP': 15,   # pianississimo 极弱
-    'PP': 31,    # pianissimo 弱
-    'P': 47,     # piano 弱
-    'MP': 63,    # mezzo-piano 中弱
-    'MF': 79,    # mezzo-forte 中强
-    'F': 95,     # forte 强
-    'FF': 111,   # fortissimo 极强
+    'PPP': 15,  # pianississimo 极弱
+    'PP': 31,  # pianissimo 弱
+    'P': 47,  # piano 弱
+    'MP': 63,  # mezzo-piano 中弱
+    'MF': 79,  # mezzo-forte 中强
+    'F': 95,  # forte 强
+    'FF': 111,  # fortissimo 极强
     'FFF': 127,  # fortississimo 最强
 }
 
@@ -276,6 +279,7 @@ _SLIDE_FLAG_MAP_IN = {
 # 主解析器类
 # ============================================================
 
+
 class GpifParser:
     """
     GPIF XML 解析器 - 将 score.gpif XML 解析为 GTPSong
@@ -293,35 +297,35 @@ class GpifParser:
     def __init__(self):
         """初始化解析器，准备各 ID 映射表"""
         # 解析结果
-        self._song: Optional[GTPSong] = None
+        self._song: GTPSong | None = None
 
         # 第一遍收集的 ID → 元素映射表
-        self._tracks_mapping: List[str] = []                          # MasterTrack/Tracks 文本(轨道ID顺序)
-        self._tracks_by_id: Dict[str, GTPTrack] = {}                  # Track id → GTPTrack
-        self._master_bars: List[Dict[str, Any]] = []                  # MasterBar 属性列表
-        self._bars_of_master_bar: List[List[str]] = []                # 每个 MasterBar 的 Bar ID 列表
-        self._bars_by_id: Dict[str, Dict[str, Any]] = {}              # Bar id → 属性字典(Voices/Clef)
-        self._voices_of_bar: Dict[str, List[str]] = {}                # Bar id → Voice ID 列表
-        self._voice_by_id: Dict[str, Dict[str, Any]] = {}             # Voice id → 属性字典
-        self._beats_of_voice: Dict[str, List[str]] = {}               # Voice id → Beat ID 列表
-        self._beat_by_id: Dict[str, GTPBeat] = {}                     # Beat id → GTPBeat
-        self._rhythm_of_beat: Dict[str, str] = {}                     # Beat id → Rhythm id
-        self._rhythm_by_id: Dict[str, _GpifRhythm] = {}               # Rhythm id → _GpifRhythm
-        self._notes_of_beat: Dict[str, List[str]] = {}                # Beat id → Note ID 列表
-        self._note_by_id: Dict[str, GTPNote] = {}                     # Note id → GTPNote
+        self._tracks_mapping: list[str] = []  # MasterTrack/Tracks 文本(轨道ID顺序)
+        self._tracks_by_id: dict[str, GTPTrack] = {}  # Track id → GTPTrack
+        self._master_bars: list[dict[str, Any]] = []  # MasterBar 属性列表
+        self._bars_of_master_bar: list[list[str]] = []  # 每个 MasterBar 的 Bar ID 列表
+        self._bars_by_id: dict[str, dict[str, Any]] = {}  # Bar id → 属性字典(Voices/Clef)
+        self._voices_of_bar: dict[str, list[str]] = {}  # Bar id → Voice ID 列表
+        self._voice_by_id: dict[str, dict[str, Any]] = {}  # Voice id → 属性字典
+        self._beats_of_voice: dict[str, list[str]] = {}  # Voice id → Beat ID 列表
+        self._beat_by_id: dict[str, GTPBeat] = {}  # Beat id → GTPBeat
+        self._rhythm_of_beat: dict[str, str] = {}  # Beat id → Rhythm id
+        self._rhythm_by_id: dict[str, _GpifRhythm] = {}  # Rhythm id → _GpifRhythm
+        self._notes_of_beat: dict[str, list[str]] = {}  # Beat id → Note ID 列表
+        self._note_by_id: dict[str, GTPNote] = {}  # Note id → GTPNote
 
         # 和弦表 (v1.4.0 新增)
         # _chord_definitions: 按 document order 索引的 Chord 列表 (index → Chord)
         # _chord_idx_of_beat: beat_id → 和弦在 _chord_definitions 中的索引 (-1=无)
-        self._chord_definitions: List[Chord] = []
-        self._chord_idx_of_beat: Dict[str, int] = {}
+        self._chord_definitions: list[Chord] = []
+        self._chord_idx_of_beat: dict[str, int] = {}
 
         # 轨道附加信息
-        self._track_sounds: Dict[str, _GpifSound] = {}                # Track id → Sound 信息
-        self._track_is_percussion: Dict[str, bool] = {}               # Track id → 是否打击乐
-        self._has_anacrusis: bool = False                             # 是否弱起小节
-        self._master_tempo: int = 120                                 # 主轨道 tempo 自动化
-        self._master_tempo_name: str = ''                             # tempo 文本(如 "Moderate")
+        self._track_sounds: dict[str, _GpifSound] = {}  # Track id → Sound 信息
+        self._track_is_percussion: dict[str, bool] = {}  # Track id → 是否打击乐
+        self._has_anacrusis: bool = False  # 是否弱起小节
+        self._master_tempo: int = 120  # 主轨道 tempo 自动化
+        self._master_tempo_name: str = ''  # tempo 文本(如 "Moderate")
 
     # ============================================================
     # 公共入口
@@ -699,7 +703,7 @@ class GpifParser:
             node:  <Articulations> XML 节点
             track: 当前 GTPTrack 对象
         """
-        articulations: List[PercussionArticulation] = []
+        articulations: list[PercussionArticulation] = []
         for c in node:
             if c.tag != 'Articulation':
                 continue
@@ -735,8 +739,7 @@ class GpifParser:
 
         track.percussion_articulations = articulations
 
-    def _parse_midi_connection(self, node: ET.Element, track: GTPTrack,
-                                sound: _GpifSound) -> None:
+    def _parse_midi_connection(self, node: ET.Element, track: GTPTrack, sound: _GpifSound) -> None:
         """解析 <MidiConnection> 节点 - MIDI 通道设置"""
         for c in node:
             tag = c.tag
@@ -748,8 +751,7 @@ class GpifParser:
                 # 副通道(用于吉他双重音色)
                 pass
 
-    def _parse_general_midi(self, node: ET.Element, track: GTPTrack,
-                             sound: _GpifSound) -> None:
+    def _parse_general_midi(self, node: ET.Element, track: GTPTrack, sound: _GpifSound) -> None:
         """解析 <GeneralMidi> 节点 - 旧版 MIDI 配置"""
         for c in node:
             if c.tag == 'Program':
@@ -941,7 +943,7 @@ class GpifParser:
                     try:
                         n = int(p)
                         if n >= 1:
-                            bits |= (1 << (n - 1))
+                            bits |= 1 << (n - 1)
                     except ValueError:
                         pass
                 mb_data['alternate_endings'] = bits
@@ -1008,7 +1010,7 @@ class GpifParser:
         结构: <Voice id="0"><Beats>0 1 2</Beats></Voice>
         """
         voice_id = node.get('id', '')
-        beat_ids: List[str] = []
+        beat_ids: list[str] = []
         for c in node:
             if c.tag == 'Beats':
                 text = (c.text or '').strip()
@@ -1145,13 +1147,13 @@ class GpifParser:
 
         # 临时变量(用于推弦曲线组装)
         is_bended = False
-        bend_origin = None       # (offset, value)
+        bend_origin = None  # (offset, value)
         bend_middle_value = None
         bend_middle_offset1 = None
         bend_middle_offset2 = None
         bend_destination = None  # (offset, value)
-        element = -1             # GP6 打击乐 element
-        variation = -1           # GP6 打击乐 variation
+        element = -1  # GP6 打击乐 element
+        variation = -1  # GP6 打击乐 variation
         midi_pitch_from_prop = None  # 从 ConcertPitch/TransposedPitch 提取的 MIDI
 
         for c in node:
@@ -1248,9 +1250,10 @@ class GpifParser:
                                 for bit, slide_type in _SLIDE_FLAG_MAP_OUT.items():
                                     if flags & bit:
                                         note.slide_out_type = slide_type
-                                        if slide_type in ('Slide Up', 'Shift'):
-                                            note.add_technique(TechniqueType.SLIDE_UP)
-                                        elif slide_type == 'Legato':
+                                        if (
+                                            slide_type in ('Slide Up', 'Shift')
+                                            or slide_type == 'Legato'
+                                        ):
                                             note.add_technique(TechniqueType.SLIDE_UP)
                                         break
                                 # 滑入类型
@@ -1269,45 +1272,31 @@ class GpifParser:
                         # 推弦起点值
                         if bend_origin is None:
                             bend_origin = [0, 0]
-                        bend_origin[1] = self._to_bend_value(
-                            self._read_float_property(prop)
-                        )
+                        bend_origin[1] = self._to_bend_value(self._read_float_property(prop))
                     elif name == 'BendOriginOffset':
                         # 推弦起点偏移
                         if bend_origin is None:
                             bend_origin = [0, 0]
-                        bend_origin[0] = self._to_bend_offset(
-                            self._read_float_property(prop)
-                        )
+                        bend_origin[0] = self._to_bend_offset(self._read_float_property(prop))
                     elif name == 'BendMiddleValue':
                         # 推弦中点值
-                        bend_middle_value = self._to_bend_value(
-                            self._read_float_property(prop)
-                        )
+                        bend_middle_value = self._to_bend_value(self._read_float_property(prop))
                     elif name == 'BendMiddleOffset1':
                         # 推弦中点偏移1
-                        bend_middle_offset1 = self._to_bend_offset(
-                            self._read_float_property(prop)
-                        )
+                        bend_middle_offset1 = self._to_bend_offset(self._read_float_property(prop))
                     elif name == 'BendMiddleOffset2':
                         # 推弦中点偏移2
-                        bend_middle_offset2 = self._to_bend_offset(
-                            self._read_float_property(prop)
-                        )
+                        bend_middle_offset2 = self._to_bend_offset(self._read_float_property(prop))
                     elif name == 'BendDestinationValue':
                         # 推弦终点值
                         if bend_destination is None:
                             bend_destination = [60, 0]  # 默认终点位置=最大
-                        bend_destination[1] = self._to_bend_value(
-                            self._read_float_property(prop)
-                        )
+                        bend_destination[1] = self._to_bend_value(self._read_float_property(prop))
                     elif name == 'BendDestinationOffset':
                         # 推弦终点偏移
                         if bend_destination is None:
                             bend_destination = [0, 0]
-                        bend_destination[0] = self._to_bend_offset(
-                            self._read_float_property(prop)
-                        )
+                        bend_destination[0] = self._to_bend_offset(self._read_float_property(prop))
                     elif name == 'ConcertPitch':
                         # 音高信息(从 Pitch 子节点提取 MIDI)
                         pitch = self._extract_pitch(prop)
@@ -1456,7 +1445,7 @@ class GpifParser:
                     return 0.0
         return 0.0
 
-    def _extract_pitch(self, prop_node: ET.Element) -> Optional[int]:
+    def _extract_pitch(self, prop_node: ET.Element) -> int | None:
         """
         从 ConcertPitch/TransposedPitch Property 中提取 MIDI 音高
 
@@ -1704,7 +1693,11 @@ class GpifParser:
                             # 因此需要根据实际弦数做反转映射:
                             #   ApolloTab string = (string_count - 1) - GPIF string
                             string_count = len(track.strings)
-                            if not is_percussion and string_count > 0 and 0 <= note.string < string_count:
+                            if (
+                                not is_percussion
+                                and string_count > 0
+                                and 0 <= note.string < string_count
+                            ):
                                 note.string = (string_count - 1) - note.string
 
                             # === 打击乐字段互斥处理 ===

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: binary_stylesheet.py
@@ -30,7 +29,7 @@
 """
 
 import struct
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 # ============================================================
@@ -38,14 +37,15 @@ from typing import Dict, Any, Optional
 # ============================================================
 class BinaryStylesheetDataType:
     """BinaryStylesheet 值的数据类型常量"""
-    BOOLEAN = 0      # 1字节布尔
-    INTEGER = 1      # 4字节大端int32
-    FLOAT = 2        # 4字节大端IEEE float32
-    STRING = 3       # int16长度 + UTF8
-    POINT = 4        # int32 x + int32 y
-    SIZE = 5         # int32 width + int32 height
-    RECTANGLE = 6    # 4×int32 (x/y/w/h)
-    COLOR = 7        # 4字节 RGBA
+
+    BOOLEAN = 0  # 1字节布尔
+    INTEGER = 1  # 4字节大端int32
+    FLOAT = 2  # 4字节大端IEEE float32
+    STRING = 3  # int16长度 + UTF8
+    POINT = 4  # int32 x + int32 y
+    SIZE = 5  # int32 width + int32 height
+    RECTANGLE = 6  # 4×int32 (x/y/w/h)
+    COLOR = 7  # 4字节 RGBA
 
 
 class BinaryStylesheet:
@@ -71,8 +71,8 @@ class BinaryStylesheet:
             data: BinaryStylesheet 文件的原始字节数据
                   （从 .gp ZIP 包的 Content/BinaryStylesheet 条目读取）
         """
-        self._values: Dict[str, Any] = {}
-        self._types: Dict[str, int] = {}
+        self._values: dict[str, Any] = {}
+        self._types: dict[str, int] = {}
         if data:
             self._read(data)
 
@@ -105,7 +105,7 @@ class BinaryStylesheet:
             offset += 1
 
             # 读取 UTF-8 key
-            key = data[offset:offset + key_len].decode('utf-8', errors='ignore')
+            key = data[offset : offset + key_len].decode('utf-8', errors='ignore')
             offset += key_len
 
             # 读取 1 字节类型
@@ -151,7 +151,7 @@ class BinaryStylesheet:
                 # int16 长度 + UTF8 内容
                 str_len = struct.unpack_from('>h', data, offset)[0]
                 offset += 2
-                val = data[offset:offset + str_len].decode('utf-8', errors='ignore')
+                val = data[offset : offset + str_len].decode('utf-8', errors='ignore')
                 return val, offset + str_len
 
             elif type_code == BinaryStylesheetDataType.POINT:
@@ -182,7 +182,7 @@ class BinaryStylesheet:
             return None, len(data)
 
     @property
-    def values(self) -> Dict[str, Any]:
+    def values(self) -> dict[str, Any]:
         """获取完整的键值对字典"""
         return dict(self._values)
 

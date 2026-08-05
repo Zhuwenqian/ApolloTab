@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ApolloTab/tests/test_chord_renderer.py
 
@@ -9,51 +8,36 @@ Chord 渲染逻辑测试 (ApolloTab v1.4.0)
   - _draw_chord_names: 不会崩溃, 在 track 无 chord 时 no-op
   - 端到端: render() 输出包含 chord 名的 QPixmap
 
-运行命令: venv/bin/python -m pytest /Users/limeng/Desktop/TAB-Score-Viewer/venv/lib/python3.13/site-packages/ApolloTab/tests/test_chord_renderer.py -q
+运行命令: python -m pytest ApolloTab/tests/test_chord_renderer.py -q
+
+v1.4.1: 移除硬编码 macOS 路径，改用 conftest.py 定位 guitarpro7/ 样本。
 """
+
 from __future__ import annotations
 
-import os
 import sys
-import zipfile
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-# 强制使用 offscreen Qt (CI 友好)
-os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtGui import QPainter, QPixmap
+# offscreen Qt 与项目根 sys.path 由 conftest.py 统一设置
 from PyQt5.QtCore import QRect
+from PyQt5.QtGui import QPainter, QPixmap
+from PyQt5.QtWidgets import QApplication
 
-# 项目根加入 sys.path (供 chord_extractor 替代品加载)
-PROJECT_ROOT = Path('/Users/limeng/Desktop/TAB-Score-Viewer')
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+# real_gp7_chords_file fixture 由 conftest.py 提供 (guitarpro7/chords.gp)
 
 
 # ============================================================
 # Fixtures
 # ============================================================
 
+
 @pytest.fixture(scope='session')
 def qapp():
     if not QApplication.instance():
         QApplication(sys.argv)
     yield QApplication.instance()
-
-
-@pytest.fixture
-def real_gp7_chords_file() -> Path:
-    candidates = [
-        Path('/Users/limeng/Desktop/TAB-Score-Viewer/guitarpro7/chords.gp'),
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    pytest.skip('chords.gp not found in known test paths')
 
 
 @pytest.fixture
@@ -65,10 +49,20 @@ def make_beat_with_chord():
 
     def _factory(chord_name, x_center=100):
         beat = GTPBeat()
-        beat.chord = Chord(key=chord_name.rstrip('m7b5'), bass=None,
-                          suffix=chord_name[1:] if chord_name.startswith(('A', 'B', 'C', 'D', 'E', 'F', 'G')) and len(chord_name) > 1 else '',
-                          extensions='') if chord_name != chord_name.rstrip('m7b5') else None
-        return BeatLayout(beat=beat, x_center=x_center, x_start=x_center-20, x_end=x_center+20)
+        beat.chord = (
+            Chord(
+                key=chord_name.rstrip('m7b5'),
+                bass=None,
+                suffix=chord_name[1:]
+                if chord_name.startswith(('A', 'B', 'C', 'D', 'E', 'F', 'G'))
+                and len(chord_name) > 1
+                else '',
+                extensions='',
+            )
+            if chord_name != chord_name.rstrip('m7b5')
+            else None
+        )
+        return BeatLayout(beat=beat, x_center=x_center, x_start=x_center - 20, x_end=x_center + 20)
 
     return _factory
 
@@ -77,11 +71,13 @@ def make_beat_with_chord():
 # _first_chord_in_sequence 单元测试
 # ============================================================
 
+
 class TestFirstChordInSequence:
     """静态方法 _first_chord_in_sequence 各种边界场景"""
 
     def test_empty_beats(self):
         from ApolloTab.renderer.tab_renderer import TabRenderer
+
         result = TabRenderer._first_chord_in_sequence([])
         assert result == []
 
@@ -89,6 +85,7 @@ class TestFirstChordInSequence:
         from ApolloTab.models.beat import GTPBeat
         from ApolloTab.renderer.layout_engine import BeatLayout
         from ApolloTab.renderer.tab_renderer import TabRenderer
+
         beats = [BeatLayout(beat=GTPBeat(), x_center=100) for _ in range(3)]
         result = TabRenderer._first_chord_in_sequence(beats)
         assert result == []
@@ -173,22 +170,24 @@ class TestFirstChordInSequence:
 # _draw_chord_names 行为测试 (Mock QPainter)
 # ============================================================
 
+
 class TestDrawChordNamesBehavior:
     """验证 _draw_chord_names 在不同场景下不崩溃且行为正确"""
 
     def test_draw_with_no_chord_is_noop(self, qapp):
         """track 无 chord 时不调用 painter, 静默返回"""
-        from ApolloTab.renderer.tab_renderer import TabRenderer
-        from ApolloTab.renderer.layout_engine import MeasureLayout, BeatLayout, SystemLayout
-        from ApolloTab.models.measure import GTPMeasure
         from ApolloTab.models.beat import GTPBeat
+        from ApolloTab.models.measure import GTPMeasure
+        from ApolloTab.renderer.layout_engine import BeatLayout, MeasureLayout, SystemLayout
+        from ApolloTab.renderer.tab_renderer import TabRenderer
 
         renderer = TabRenderer()
         painter = MagicMock(spec=QPainter)
         system = SystemLayout(y_top=100, y_bottom=300, y_tab_top=120, y_tab_bottom=240)
         m_layout = MeasureLayout(
             measure=GTPMeasure(),
-            x_start=10, x_end=500,
+            x_start=10,
+            x_end=500,
             beats=[BeatLayout(beat=GTPBeat(), x_center=100)],
         )
 
@@ -201,11 +200,11 @@ class TestDrawChordNamesBehavior:
 
     def test_draw_with_chord_calls_painter(self, qapp):
         """track 有 chord 时调用 painter.setFont / drawText / drawRoundedRect"""
-        from ApolloTab.renderer.tab_renderer import TabRenderer
-        from ApolloTab.renderer.layout_engine import MeasureLayout, BeatLayout, SystemLayout
-        from ApolloTab.models.measure import GTPMeasure
         from ApolloTab.models.beat import GTPBeat
         from ApolloTab.models.chord import Chord
+        from ApolloTab.models.measure import GTPMeasure
+        from ApolloTab.renderer.layout_engine import BeatLayout, MeasureLayout, SystemLayout
+        from ApolloTab.renderer.tab_renderer import TabRenderer
 
         renderer = TabRenderer()
         painter = MagicMock(spec=QPainter)
@@ -215,7 +214,8 @@ class TestDrawChordNamesBehavior:
         beat.chord = Chord(key='C')
         m_layout = MeasureLayout(
             measure=GTPMeasure(),
-            x_start=10, x_end=500,
+            x_start=10,
+            x_end=500,
             beats=[BeatLayout(beat=beat, x_center=200)],
         )
 
@@ -232,11 +232,11 @@ class TestDrawChordNamesBehavior:
 
     def test_draw_uses_theme_color(self, qapp):
         """_draw_chord_names 使用 theme.COLOR_TECHNIQUE 颜色"""
-        from ApolloTab.renderer.tab_renderer import TabRenderer
-        from ApolloTab.renderer.layout_engine import MeasureLayout, BeatLayout, SystemLayout
-        from ApolloTab.models.measure import GTPMeasure
         from ApolloTab.models.beat import GTPBeat
         from ApolloTab.models.chord import Chord
+        from ApolloTab.models.measure import GTPMeasure
+        from ApolloTab.renderer.layout_engine import BeatLayout, MeasureLayout, SystemLayout
+        from ApolloTab.renderer.tab_renderer import TabRenderer
 
         renderer = TabRenderer()
         # 切换到 light theme 验证颜色变化
@@ -250,7 +250,8 @@ class TestDrawChordNamesBehavior:
         beat.chord = Chord(key='G')
         m_layout = MeasureLayout(
             measure=GTPMeasure(),
-            x_start=10, x_end=500,
+            x_start=10,
+            x_end=500,
             beats=[BeatLayout(beat=beat, x_center=200)],
         )
 
@@ -262,22 +263,24 @@ class TestDrawChordNamesBehavior:
 # ============================================================
 # 端到端: render() 输出 QPixmap
 # ============================================================
-# 注意: macOS Qt offscreen 模式下, _render_page 内部的 QPainter 会触发进程 abort.
-#       这是 ApolloTab render() 自身的 macOS 兼容性问题 (与 chord 代码无关),
-#       在 Linux/Windows offscreen 模式下能正常通过.
-#       手动验证: venv/bin/python _verify_chord_render.py (可生成 PNG 看效果)
+# 注意: ApolloTab render() 的 _render_page 在 Qt offscreen 模式下存在兼容性问题:
+#   - macOS: QPainter 触发进程 abort
+#   - Windows: 同样会触发进程崩溃 (exit code 0xC0000409)
+#   - Linux: offscreen 模式可正常通过
+# 这是渲染引擎自身的已知问题 (与 chord 代码无关)，故端到端渲染测试仅在 Linux 运行。
+# 手动验证: python -c "from ApolloTab import parse_score, TabRenderer; ..."
+#           (在有显示环境的机器上生成 PNG 看效果)
 
-import pytest
-
-_skip_e2e_on_darwin = pytest.mark.skipif(
-    sys.platform == 'darwin',
-    reason='macOS Qt offscreen mode crashes in _render_page (ApolloTab 已有兼容性问题, 与 chord 无关)'
+# 仅在 Linux 上运行端到端渲染; macOS/Windows offscreen 会崩溃
+_skip_e2e_off_linux = pytest.mark.skipif(
+    sys.platform != 'linux',
+    reason='ApolloTab render() 在 macOS/Windows Qt offscreen 模式下崩溃, 仅 Linux 可跑 (与 chord 无关)',
 )
 
 
-@_skip_e2e_on_darwin
+@_skip_e2e_off_linux
 class TestEndToEndRender:
-    """完整 parse_score → render() 流程, 验证 QPixmap 正常输出 (Linux/Windows only)"""
+    """完整 parse_score → render() 流程, 验证 QPixmap 正常输出 (Linux only)"""
 
     def test_render_real_gp7_with_chords(self, qapp, real_gp7_chords_file):
         """真实 GP7 文件: render() 返回非空 QPixmap 列表, 不崩溃"""

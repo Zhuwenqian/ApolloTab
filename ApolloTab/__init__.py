@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 ApolloTab - Guitar Pro 文件渲染与播放引擎库
@@ -52,52 +51,79 @@ ApolloTab - Guitar Pro 文件渲染与播放引擎库
 ============================================================
 """
 
+from .audio import MetronomeConfig, MetronomeGenerator, MidiConverter, MidiEvent, SynthEngine
+from .models import Chord, GTPBeat, GTPMeasure, GTPNote, GTPSong, GTPTrack
 from .parser import (
-    GTPParser, parse_gtp,                  # GP3-5 解析器
-    GP7Parser, GpifParser, parse_gp7,      # GP7/GP8 解析器(v0.4.0新增)
-    BinaryStylesheet, PartConfiguration,   # 二进制配置解析器(v0.4.0新增)
-    parse_score,                           # 智能调度函数(v0.4.0新增)
-    GP3_5_EXTENSIONS, GP7_8_EXTENSIONS, ALL_SUPPORTED_EXTENSIONS,
+    ALL_SUPPORTED_EXTENSIONS,
+    GP3_5_EXTENSIONS,
+    GP7_8_EXTENSIONS,
+    BinaryStylesheet,
+    GP7Parser,
+    GpifParser,
+    GTPParser,
+    PartConfiguration,  # 二进制配置解析器(v0.4.0新增)
+    parse_gp7,  # GP7/GP8 解析器(v0.4.0新增)
+    parse_gtp,  # GP3-5 解析器
+    parse_score,  # 智能调度函数(v0.4.0新增)
 )
-from .models import GTPNote, GTPBeat, GTPMeasure, GTPTrack, GTPSong, Chord
-from .renderer import TabRenderer, render_gtp, TabLayoutEngine
-from .audio import MidiConverter, MidiEvent, SynthEngine
-from .audio import MetronomeConfig, MetronomeGenerator
 from .player import GTPPlayer, create_gtp_player, render_gtp_to_images
+from .renderer import TabLayoutEngine, TabRenderer, render_gtp
 from .utils import (
-    StandardTunings, NoteDuration, TechniqueType,
-    RenderConfig, ThemeConfig,  # v0.2.4新增: 渲染主题配置
-    RenderMode,                 # v0.4.0新增: 渲染模式枚举
-    TECHNIQUE_ABBREVIATION, get_string_name
+    TECHNIQUE_ABBREVIATION,
+    NoteDuration,
+    RenderConfig,
+    RenderMode,  # v0.4.0新增: 渲染模式枚举
+    StandardTunings,
+    TechniqueType,
+    ThemeConfig,  # v0.2.4新增: 渲染主题配置
+    get_string_name,
 )
 
 __version__ = "1.4.0"
 __all__ = [
     # ===== 高级API（推荐）=====
-    'GTPPlayer',              # 高级播放器封装类（整合所有GTP功能）
-    'create_gtp_player',      # 工厂函数：快速创建播放器实例
-    'render_gtp_to_images',   # 便捷函数：一键渲染为图像列表
-
+    'GTPPlayer',  # 高级播放器封装类（整合所有GTP功能）
+    'create_gtp_player',  # 工厂函数：快速创建播放器实例
+    'render_gtp_to_images',  # 便捷函数：一键渲染为图像列表
     # 解析器（GP3-5）
-    'GTPParser', 'parse_gtp',
+    'GTPParser',
+    'parse_gtp',
     # 解析器（GP7/GP8, v0.4.0新增）
-    'GP7Parser', 'GpifParser', 'parse_gp7',
-    'BinaryStylesheet', 'PartConfiguration',
+    'GP7Parser',
+    'GpifParser',
+    'parse_gp7',
+    'BinaryStylesheet',
+    'PartConfiguration',
     # 智能调度函数(v0.4.0新增)
     'parse_score',
     # 扩展名常量(v0.4.0新增)
-    'GP3_5_EXTENSIONS', 'GP7_8_EXTENSIONS', 'ALL_SUPPORTED_EXTENSIONS',
+    'GP3_5_EXTENSIONS',
+    'GP7_8_EXTENSIONS',
+    'ALL_SUPPORTED_EXTENSIONS',
     # 数据模型
-    'GTPNote', 'GTPBeat', 'GTPMeasure', 'GTPTrack', 'GTPSong',
+    'GTPNote',
+    'GTPBeat',
+    'GTPMeasure',
+    'GTPTrack',
+    'GTPSong',
     # 渲染器
-    'TabRenderer', 'render_gtp', 'TabLayoutEngine',
+    'TabRenderer',
+    'render_gtp',
+    'TabLayoutEngine',
     # 音频播放
-    'MidiConverter', 'MidiEvent', 'SynthEngine',
+    'MidiConverter',
+    'MidiEvent',
+    'SynthEngine',
     # 节拍器 (v1.1.3新增)
-    'MetronomeConfig', 'MetronomeGenerator',
+    'MetronomeConfig',
+    'MetronomeGenerator',
     # 工具
-    'StandardTunings', 'NoteDuration', 'TechniqueType',
-    'RenderConfig', 'ThemeConfig',  # v0.2.4新增: 渲染主题配置
-    'RenderMode',                   # v0.4.0新增: 渲染模式枚举
-    'TECHNIQUE_ABBREVIATION', 'get_string_name',
+    'StandardTunings',
+    'NoteDuration',
+    'TechniqueType',
+    'RenderConfig',
+    'ThemeConfig',  # v0.2.4新增: 渲染主题配置
+    'RenderMode',  # v0.4.0新增: 渲染模式枚举
+    'TECHNIQUE_ABBREVIATION',
+    'get_string_name',
 ]

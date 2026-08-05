@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 gtp_engine.audio - 音频播放引擎包
@@ -13,11 +12,11 @@ gtp_engine.audio - 音频播放引擎包
 
 快速开始:
     from gtp_engine.audio import MidiConverter, SynthEngine
-    
+
     # 转换为MIDI事件
     converter = MidiConverter()
     events = converter.convert(song, track_index=0)
-    
+
     # 初始化合成器并播放
     engine = SynthEngine()
     engine.initialize()
@@ -34,12 +33,14 @@ gtp_engine.audio - 音频播放引擎包
 ============================================================
 """
 
+from .metronome import MetronomeConfig, MetronomeGenerator
 from .midi_converter import MidiConverter, MidiEvent
 from .synth_engine import SynthEngine
-from .metronome import MetronomeConfig, MetronomeGenerator
 
 __all__ = [
-    'MidiConverter', 'MidiEvent',
+    'MidiConverter',
+    'MidiEvent',
     'SynthEngine',
-    'MetronomeConfig', 'MetronomeGenerator',
+    'MetronomeConfig',
+    'MetronomeGenerator',
 ]

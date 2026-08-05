@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ============================================================
 文件名: part_configuration.py
@@ -50,6 +49,7 @@ class PartConfigurationTrackViewGroup:
       show_standard_notation: 是否显示五线谱（预留渲染接口）
       show_tablature:        是否显示六线谱 TAB（默认 True）
     """
+
     show_numbered: bool = False
     show_slash: bool = False
     show_standard_notation: bool = False
@@ -65,8 +65,9 @@ class PartConfigurationScoreView:
       is_multi_rest:     是否多小节休止
       track_view_groups: 每个音轨的谱表显示配置列表
     """
+
     is_multi_rest: bool = False
-    track_view_groups: List[PartConfigurationTrackViewGroup] = field(default_factory=list)
+    track_view_groups: list[PartConfigurationTrackViewGroup] = field(default_factory=list)
 
 
 class PartConfiguration:
@@ -92,7 +93,7 @@ class PartConfiguration:
             data: PartConfiguration 文件的原始字节数据
                   （从 .gp ZIP 包的 Content/PartConfiguration 条目读取）
         """
-        self.score_views: List[PartConfigurationScoreView] = []
+        self.score_views: list[PartConfigurationScoreView] = []
         self.active_view_index: int = 0
         if data:
             self._read(data)
