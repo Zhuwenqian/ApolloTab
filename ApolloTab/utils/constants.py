@@ -452,6 +452,14 @@ class RenderConfig:
     LINE_SPACING = 30  # 两行六线谱之间的垂直间距(px) - 含符干符尾空间
     SYSTEM_SPACING = 20  # 不同系统(组)之间的额外间距(px)
 
+    # --- 歌词 (Lyrics) ---
+    # 歌词渲染在六线谱下方（等价 alphaTab 的 lyrics effect band）
+    # 歌词为消色差文本，不参与 CVD 颜色变换（CVD 仅作用于实时显示的颜色元素）
+    LYRICS_FONT_FAMILY = "Arial"  # 歌词字体族
+    LYRICS_FONT_SIZE = 10  # 歌词字号(px)
+    LYRICS_LINE_PITCH = 16  # 多行歌词的垂直行距(px) - 含字高+行间距，保证与布局预留高度一致
+    LYRICS_TOP_PADDING = 6  # 歌词带顶部与符干区下沿的间距(px)
+
     def __init__(self, theme: ThemeConfig | None = None):
         """
         初始化渲染配置

@@ -14,6 +14,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .lyrics import Lyrics
 from .measure import GTPMeasure
 
 
@@ -146,3 +147,55 @@ class GTPTrack:
     def get_total_beats(self) -> int:
         """获取该轨道所有小节的总拍数"""
         return sum(len(m.beats) for m in self.measures)
+
+    def apply_lyrics(self, lyrics_list: list[Lyrics]) -> None:
+        """
+        将多条歌词行分配到各拍 - 移植自 alphaTab Track.applyLyrics
+
+        对每条歌词行:
+          1. 调用 lyric.finish() 把原始文本解析为 chunks
+          2. 从 start_bar 小节的第一拍开始，按顺序把每个 chunk
+             分配到一个"有音符"的拍（跳过休止符和空拍）
+          3. beat.lyrics 是 list[str]，长度 = 歌词行数；
+             第 li 行的 chunk 写入 beat.lyrics[li]，缺失处为 ''
+
+        参数:
+          lyrics_list: 歌词行列表（每条对应一个 <Line>）
+        """
+        for lyric in lyrics_list:
+            lyric.finish()
+
+        if not self.measures or not lyrics_list:
+            return
+
+        # 拍扁平序列：跨小节顺序的所有拍（对应 alphaTab 的 beat.nextBeat 链）
+        all_beats = [beat for measure in self.measures for beat in measure.beats]
+        if not all_beats:
+            return
+
+        # 每个起始小节在扁平序列中的起始索引
+        bar_start_indices: list[int] = []
+        idx = 0
+        for measure in self.measures:
+            bar_start_indices.append(idx)
+            idx += len(measure.beats)
+
+        num_lines = len(lyrics_list)
+        for li, lyric in enumerate(lyrics_list):
+            if lyric.start_bar < 0 or lyric.start_bar >= len(self.measures):
+                continue
+            bi = bar_start_indices[lyric.start_bar]
+            for chunk in lyric.chunks:
+                # 跳过休止符和空拍（无音符的拍不承载歌词）
+                while bi < len(all_beats) and not all_beats[bi].notes:
+                    bi += 1
+                if bi >= len(all_beats):
+                    break
+                beat = all_beats[bi]
+                if beat.lyrics is None:
+                    beat.lyrics = [""] * num_lines
+                # 保证列表长度足够容纳第 li 行
+                while len(beat.lyrics) <= li:
+                    beat.lyrics.append("")
+                beat.lyrics[li] = chunk
+                bi += 1

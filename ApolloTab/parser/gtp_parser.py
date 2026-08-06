@@ -22,6 +22,7 @@ import guitarpro
 
 from ..models.beat import GTPBeat
 from ..models.chord import Chord
+from ..models.lyrics import Lyrics
 from ..models.measure import GTPMeasure
 from ..models.note import BendData, GTPNote
 from ..models.song import GTPSong
@@ -206,7 +207,48 @@ class GTPParser:
             track = self._convert_track(raw_track, raw_song)
             song.tracks.append(track)
 
+        # 歌词分配 (GP3-5 歌词为 song 级，含 trackChoice 指向目标轨道)
+        self._apply_song_lyrics(song, raw_song)
+
         return song
+
+    def _apply_song_lyrics(self, song: GTPSong, raw_song: guitarpro.models.Song) -> None:
+        """
+        将 pyguitarpro 的 song 级歌词映射到目标轨道
+
+        pyguitarpro 数据结构:
+          raw_song.lyrics: Lyrics 对象
+            .trackChoice: int - 歌词所属轨道编号(1-based)，与 alphaTab 的 _lyricsTrack 一致
+            .lines: list[LyricLine] - 固定 5 行，每行:
+                .startingMeasure: int - 起始小节(1-based)
+                .lyrics: str - GP 格式原始歌词文本
+
+        映射规则 (移植 alphaTab Gp3To5Importer.readLyrics):
+          1. trackChoice 为 1-based 轨道号 → 转 0-based 索引定位目标轨道
+          2. 仅取 lyrics 文本非空的行，每行转为 Lyrics(start_bar=startingMeasure-1, text)
+          3. 调用目标轨道 apply_lyrics 完成分块与按拍分配
+        """
+        raw_lyrics = raw_song.lyrics
+        if not song.tracks:
+            return
+
+        # 收集非空歌词行
+        lyrics_lines: list[Lyrics] = []
+        for line in raw_lyrics.lines:
+            if line.lyrics:
+                lyrics_lines.append(
+                    Lyrics(
+                        start_bar=max(line.startingMeasure - 1, 0),  # 1-based → 0-based
+                        text=line.lyrics,
+                    )
+                )
+        if not lyrics_lines:
+            return
+
+        # trackChoice 为 1-based 轨道号，转 0-based 索引
+        target_idx = raw_lyrics.trackChoice - 1
+        if 0 <= target_idx < len(song.tracks):
+            song.tracks[target_idx].apply_lyrics(lyrics_lines)
 
     def _convert_key(self, key_sig: Any) -> int:
         """

@@ -467,6 +467,44 @@ class GTPPlayer:
         # 委托给内部渲染器的 set_theme 方法
         self._renderer.set_theme(theme)
 
+    def set_cvd(self, cvd_type: str) -> None:
+        """
+        切换 CVD (色觉缺陷) 模拟 (v1.6.0 新增, 委托给内部渲染器).
+
+        功能:
+          对当前渲染主题颜色套 CVD 矩阵变换, 让谱面模拟 CVD 用户视角.
+          切换后需要重新调用 render_track() 才能生成使用新配色的图像 (同 set_theme).
+
+        参数:
+            cvd_type: CVD 类型标识 ("none" / "protanopia" / "deuteranopia" /
+                      "tritanopia" / "protanomaly" / "deuteranomaly" / "tritanomaly").
+                      "none" 还原主题原色.
+
+        使用示例:
+            player.set_cvd("protanopia")     # 模拟红色盲视角
+            pages = player.render_track()    # 重新渲染才生效
+            player.set_cvd("none")           # 还原
+
+        注意:
+          - 仅修改配置, 不会自动重新渲染已有图像 (同 set_theme).
+          - 与 set_theme 可任意顺序叠加.
+          - 无效 cvd_type 静默忽略 (由 TabRenderer.set_cvd 处理).
+
+        设计模式:
+          委托模式(Delegate): 转发给内部 TabRenderer 实例, 对外提供统一简化接口.
+        """
+        self._renderer.set_cvd(cvd_type)
+
+    @property
+    def current_cvd_type(self) -> str:
+        """
+        获取当前激活的 CVD 类型标识 (委托给内部渲染器).
+
+        返回:
+            'none' / 'protanopia' / 'deuteranopia' / ...
+        """
+        return self._renderer.current_cvd_type
+
     @property
     def current_theme_name(self) -> str:
         """

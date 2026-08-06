@@ -112,6 +112,13 @@ class TabRenderer:
         # 调整效果: 设为 RenderMode.TAB_ONLY 仅渲染六线谱(当前唯一支持)
         #           其他模式需通过子类重写 _draw_standard_notation 等钩子方法实现
         self.render_mode: RenderMode = RenderMode.TAB_ONLY
+        # [a11y/cvd] CVD 模拟状态 (v1.6.0 新增)
+        # _base_theme: 纯净主题 (无 CVD 变换), 用于 cvd='none' 时还原 + set_theme 切换时重新叠加 CVD
+        # _cvd_type:   当前 CVD 类型 ('none' / 'protanopia' / ...), 'none' 表示不变换
+        # 所有颜色读取都走 self.cfg.theme.COLOR_*, set_cvd/set_theme 只需替换 cfg.theme 为
+        # (可能经 CVD 变换的) ThemeConfig, 30+ 读点自动生效, 无需逐点改.
+        self._base_theme = self.cfg.theme
+        self._cvd_type: str = "none"
 
     def set_theme(self, theme: Any) -> None:
         """
@@ -184,10 +191,99 @@ class TabRenderer:
             )
 
         # === 应用新主题到配置 ===
-        self.cfg.theme = new_theme
+        # [a11y/cvd] 先记住纯净主题 (base), 再按当前 _cvd_type 决定 cfg.theme 用纯净还是 CVD 变换副本.
+        # 这样 set_theme 与 set_cvd 可任意顺序叠加: 切主题保留 CVD, 切 CVD 作用于新主题.
+        self._base_theme = new_theme
+        applied = self._build_cvd_theme(new_theme, self._cvd_type)
+        self.cfg.theme = applied
 
         # === 同步更新布局引擎的主题（保持一致性）===
-        self._layout_engine.cfg.theme = new_theme
+        self._layout_engine.cfg.theme = applied
+
+    def set_cvd(self, cvd_type: str) -> None:
+        """
+        设置 CVD (色觉缺陷) 模拟类型 (v1.6.0 新增, a11y).
+
+        功能:
+          对当前主题颜色套 CVD 矩阵变换, 让设计师/开发者看到 CVD 用户视角的谱面.
+          切换后需要重新调用 render() 才能生成使用新配色的图像 (与 set_theme 语义一致).
+
+        参数:
+            cvd_type: CVD 类型标识, 取值:
+              "none"          - 不变换 (还原主题原色)
+              "protanopia"    - 红色盲
+              "deuteranopia"  - 绿色盲
+              "tritanopia"    - 蓝色盲
+              "protanomaly"   - 红色弱
+              "deuteranomaly" - 绿色弱
+              "tritanomaly"   - 蓝色弱
+
+        叠加顺序:
+          主题色 (ThemeConfig) → CVD 矩阵变换 → 最终渲染色.
+          cvd_type='none' 时还原 _base_theme 的原色.
+
+        使用示例:
+            renderer.set_cvd("protanopia")   # 模拟红色盲视角
+            pixmaps = renderer.render(song)  # 重新渲染才生效
+            renderer.set_cvd("none")         # 还原
+
+        注意:
+          - 此方法仅修改配置, 不会自动重新渲染已有图像 (同 set_theme).
+          - 与 set_theme 可任意顺序调用: set_theme 后 CVD 仍生效, set_cvd 后切主题会重新叠加 CVD.
+          - 无效 cvd_type 静默忽略 (记日志), 不抛异常, 不阻塞渲染.
+
+        性能:
+          O(11) — 对当前主题的 11 个 COLOR_* 键各做一次矩阵乘法, 无 I/O.
+        """
+        from ..utils.cvd import is_valid_cvd
+
+        if not is_valid_cvd(cvd_type):
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "[cvd] 无效的 CVD 类型: %s, 保持原值 %s", cvd_type, self._cvd_type
+            )
+            return
+        self._cvd_type = cvd_type
+        applied = self._build_cvd_theme(self._base_theme, cvd_type)
+        self.cfg.theme = applied
+        # 同步布局引擎主题 (保持与 set_theme 一致, 虽然 layout_engine 不读颜色)
+        self._layout_engine.cfg.theme = applied
+
+    def _build_cvd_theme(self, base: Any, cvd_type: str) -> Any:
+        """
+        根据 base 主题 + cvd_type 生成最终 ThemeConfig.
+
+        - cvd_type='none' 或未知: 返回 base 本身 (零拷贝)
+        - 否则: 对 base._colors 的每个 COLOR_* 值套 apply_cvd_to_hex,
+                用 ThemeConfig(colors=new_colors, theme_name=base.name) 构造新实例.
+
+        参数:
+            base:     纯净 ThemeConfig (无 CVD)
+            cvd_type: CVD 类型标识
+
+        返回:
+            最终用于 cfg.theme 的 ThemeConfig (none 时即 base)
+        """
+        if cvd_type == "none" or cvd_type is None:
+            return base
+        from ..utils.constants import ThemeConfig
+        from ..utils.cvd import apply_cvd_to_hex
+
+        # base._colors 是 ThemeConfig.__init__ 设置的真实属性 (dict[str, hex]).
+        # 直接访问: 若 base 不是 ThemeConfig (缺少 _colors), 应该 fail-fast 而非静默吞错.
+        new_colors = {k: apply_cvd_to_hex(v, cvd_type) for k, v in base._colors.items()}
+        return ThemeConfig(colors=new_colors, theme_name=base.name)
+
+    @property
+    def current_cvd_type(self) -> str:
+        """
+        获取当前激活的 CVD 类型标识 (供测试/app 查询).
+
+        返回:
+            'none' / 'protanopia' / 'deuteranopia' / ...
+        """
+        return self._cvd_type
 
     @property
     def current_theme_name(self) -> str:
@@ -568,9 +664,45 @@ class TabRenderer:
         for m_layout in system.measures:
             self._draw_measure(painter, track, system, m_layout)
 
+        # 3.5 绘制歌词（六线谱下方的歌词带，等价 alphaTab lyrics effect band）
+        self._draw_lyrics(painter, system)
+
         # 4. 系统级技巧延长虚线（P.M./Let Ring/N.H./A.H./T.H./P.H.）
         #    在所有小节绘制完成后统一收集并画在弦线区域上方
         self._draw_system_technique_extensions(painter, system)
+
+    def _draw_lyrics(self, painter: QPainter, system: SystemLayout) -> None:
+        """
+        绘制歌词带 - 移植自 alphaTab LyricsGlyph/LyricsEffectInfo
+
+        布局规则（与 alphaTab 一致）:
+          - 歌词绘制在六线谱下方（y_lyrics_top 起），居中对齐到拍中心
+          - 多行歌词垂直堆叠，每行间距 LYRICS_LINE_PITCH
+          - 仅绘制非空歌词片段；beat.lyrics 为 None/空则跳过
+          - 歌词为消色差文本，使用主题 COLOR_TEXT，不参与 CVD 颜色变换
+        """
+        if system.lyrics_line_count <= 0 or system.y_lyrics_top <= 0:
+            return
+
+        painter.setPen(QColor(self.cfg.theme.COLOR_TEXT))
+        font = QFont(self.cfg.LYRICS_FONT_FAMILY, self.cfg.LYRICS_FONT_SIZE)
+        painter.setFont(font)
+        fm = QFontMetrics(font)
+        pitch = self.cfg.LYRICS_LINE_PITCH
+
+        for m_layout in system.measures:
+            for bl in m_layout.beats:
+                beat = bl.beat
+                if not beat.lyrics:
+                    continue
+                cx = bl.x_center
+                for i, line_text in enumerate(beat.lyrics):
+                    if not line_text:
+                        continue  # 空片段不绘制（多行中该拍此行无歌词）
+                    tw = fm.horizontalAdvance(line_text)
+                    # 第 i 行基线 = 歌词带顶 + i*pitch + ascent，保证落在预留带内
+                    baseline = system.y_lyrics_top + i * pitch + fm.ascent()
+                    painter.drawText(QPoint(cx - tw // 2, baseline), line_text)
 
     def _draw_info_bar(self, painter: QPainter, measure: GTPMeasure, system: SystemLayout) -> None:
         """

@@ -74,12 +74,14 @@ class SystemLayout:
     一行六线谱(系统)的布局 - 可包含多个连续小节
 
     属性:
-      y_top:          该行顶部Y坐标（信息区下方）
-      y_bottom:       该行底部Y坐标（含符干符尾空间）
-      y_tab_top:      六线谱区域顶部Y（第1弦线位置）
-      y_tab_bottom:   六线谱区域底部Y（最后一根弦线位置）
-      measures:       该行包含的小节布局列表
-      string_count:   弦数量(从GTP文件读取, 4/5/6/7弦等)
+      y_top:             该行顶部Y坐标（信息区下方）
+      y_bottom:          该行底部Y坐标（含符干符尾/歌词带空间）
+      y_tab_top:         六线谱区域顶部Y（第1弦线位置）
+      y_tab_bottom:      六线谱区域底部Y（最后一根弦线位置）
+      measures:          该行包含的小节布局列表
+      string_count:      弦数量(从GTP文件读取, 4/5/6/7弦等)
+      y_lyrics_top:      歌词带顶部Y坐标（0=该行无歌词，不绘制歌词）
+      lyrics_line_count: 歌词行数（多行歌词垂直堆叠，0=无歌词）
     """
 
     y_top: int = 0
@@ -88,6 +90,8 @@ class SystemLayout:
     y_tab_bottom: int = 0
     string_count: int = 6  # 默认6弦吉他
     measures: list[MeasureLayout] = field(default_factory=list)
+    y_lyrics_top: int = 0  # 歌词带顶部Y（0=无歌词）
+    lyrics_line_count: int = 0  # 歌词行数（0=无歌词）
 
 
 @dataclass
@@ -304,7 +308,8 @@ class TabLayoutEngine:
             # 使用绝对坐标(y=15)，不需要在每个系统前留空白
             system.y_tab_top = current_y
             system.y_tab_bottom = system.y_tab_top + tab_height
-            system.y_bottom = system.y_tab_bottom + self.cfg.STEM_HEIGHT + 8
+            # 符干区下沿（歌词带在其下方，y_bottom 在小节分配后据歌词行数确定）
+            stem_bottom = system.y_tab_bottom + self.cfg.STEM_HEIGHT + 8
 
             current_x = start_x
 
@@ -322,6 +327,21 @@ class TabLayoutEngine:
                 system.measures.append(m_layout)
 
                 current_x = m_layout.x_end
+
+            # 歌词带高度预留（移植 alphaTab lyrics effect band 思路）
+            # 扫描该行所有拍，取最大歌词行数；有歌词则在符干区下方预留空间，
+            # 撑大 system.y_bottom，避免与下一行六线谱重叠
+            max_lyric_lines = 0
+            for m_layout in system.measures:
+                for bl in m_layout.beats:
+                    if bl.beat.lyrics:
+                        max_lyric_lines = max(max_lyric_lines, len(bl.beat.lyrics))
+            if max_lyric_lines > 0:
+                system.lyrics_line_count = max_lyric_lines
+                system.y_lyrics_top = stem_bottom + self.cfg.LYRICS_TOP_PADDING
+                system.y_bottom = system.y_lyrics_top + max_lyric_lines * self.cfg.LYRICS_LINE_PITCH
+            else:
+                system.y_bottom = stem_bottom
 
             systems.append(system)
             current_y = system.y_bottom + self.cfg.SYSTEM_SPACING

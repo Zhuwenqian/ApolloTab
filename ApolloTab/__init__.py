@@ -42,17 +42,17 @@ ApolloTab - Guitar Pro 文件渲染与播放引擎库
   注: PyQt5 已移出 pip 依赖; ARM 架构需 apt 安装后手动创建软链接
   注: GP7/GP8 (.gp) 解析仅依赖 Python 标准库(zipfile/xml/struct)
 
-版本: v1.3.0 (Phase 5 - GP7/GP8 原生支持 + 主题运行时注册)
+版本: v1.6.0 (Lyrics 歌词解析与渲染 + CVD 色觉缺陷模拟)
 许可证: GNU Lesser General Public License v2.1 (LGPL-2.1)
 创建日期: 2026-06-06
-最后更新: 2026-06-30 (v1.3.0: ThemeConfig 新增 register_theme() 运行时主题注册接口;
-                   节拍器默认 gain 调整为1.5; 新增通道音量 CC 事件;
-                   修复 GP7/GP8 GPIF String 弦号映射方向)
+最后更新: 2026-08-06 (v1.6.0: 新增 Lyrics 数据模型与 GP3-5/GP7-8 歌词解析/布局/渲染;
+                   新增 CVD 色觉缺陷模拟 (TabRenderer/GTPPlayer 的 set_cvd / current_cvd_type);
+                   ruff extend-exclude 忽略 *.md)
 ============================================================
 """
 
 from .audio import MetronomeConfig, MetronomeGenerator, MidiConverter, MidiEvent, SynthEngine
-from .models import Chord, GTPBeat, GTPMeasure, GTPNote, GTPSong, GTPTrack
+from .models import Chord, GTPBeat, GTPMeasure, GTPNote, GTPSong, GTPTrack, Lyrics
 from .parser import (
     ALL_SUPPORTED_EXTENSIONS,
     GP3_5_EXTENSIONS,
@@ -79,7 +79,7 @@ from .utils import (
     get_string_name,
 )
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 __all__ = [
     # ===== 高级API（推荐）=====
     'GTPPlayer',  # 高级播放器封装类（整合所有GTP功能）
@@ -106,6 +106,7 @@ __all__ = [
     'GTPMeasure',
     'GTPTrack',
     'GTPSong',
+    'Lyrics',  # v1.6.0新增: 歌词数据模型
     # 渲染器
     'TabRenderer',
     'render_gtp',

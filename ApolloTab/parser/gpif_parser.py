@@ -41,6 +41,7 @@ from typing import Any, Optional
 
 from ..models.beat import GTPBeat
 from ..models.chord import Chord
+from ..models.lyrics import Lyrics
 from ..models.measure import GTPMeasure
 from ..models.note import BendData, GTPNote
 
@@ -327,6 +328,10 @@ class GpifParser:
         self._master_tempo: int = 120  # 主轨道 tempo 自动化
         self._master_tempo_name: str = ''  # tempo 文本(如 "Moderate")
 
+        # 歌词 (移植 alphaTab GpifParser) - track 级歌词按轨道收集，beat 级歌词直接写 beat.lyrics
+        self._lyrics_by_track: dict[str, list[Lyrics]] = {}  # Track id → 歌词行列表
+        self._skip_apply_lyrics: bool = False  # beat 级歌词存在时跳过 track 级 apply
+
     # ============================================================
     # 公共入口
     # ============================================================
@@ -369,6 +374,14 @@ class GpifParser:
 
         # === 第二遍: 按 ID 组装模型 ===
         self._build_model()
+
+        # === 歌词分配 (移植 alphaTab: track 级歌词在模型组装完成后 apply) ===
+        # beat 级 <Lyrics> 存在时 _skip_apply_lyrics=True，跳过 track 级 apply
+        if not self._skip_apply_lyrics and self._lyrics_by_track:
+            for track_id, lyrics in self._lyrics_by_track.items():
+                track = self._tracks_by_id.get(track_id)
+                if track is not None and lyrics:
+                    track.apply_lyrics(lyrics)
 
         return self._song
 
@@ -639,6 +652,9 @@ class GpifParser:
             elif tag == 'Articulations':
                 # [v1.1.2] 解析打击乐 articulation 列表
                 self._parse_articulations(c, track)
+            elif tag == 'Lyrics':
+                # track 级歌词 <Lyrics><Line><Offset>..<Text>..</Line></Lyrics>
+                self._parse_lyrics(track_id, c)
 
         # 存储到映射表
         track.is_percussion = is_percussion
@@ -1078,8 +1094,66 @@ class GpifParser:
             elif tag == 'GraceNotes' and text in ('OnBeat', 'BeforeBeat'):
                 # 装饰音(OnBeat/BeforeBeat)
                 beat.grace_type = text
+            elif tag == 'Lyrics':
+                # beat 级歌词 <Lyrics><Line>...</Line></Lyrics> - 直接写 beat.lyrics
+                # 存在 beat 级歌词时跳过 track 级 apply（与 alphaTab 一致）
+                beat.lyrics = self._parse_beat_lyrics(c)
+                self._skip_apply_lyrics = True
 
         self._beat_by_id[beat_id] = beat
+
+    # ----- 歌词节点解析 (移植 alphaTab GpifParser) -----
+
+    def _parse_lyrics(self, track_id: str, node: ET.Element) -> None:
+        """
+        解析 track 级 <Lyrics> 节点
+
+        GPIF 结构:
+          <Lyrics>
+            <Line><Offset>0</Offset><Text>Hel-lo world</Text></Line>
+            <Line>...</Line>
+          </Lyrics>
+
+        每条 <Line> 转为一个 Lyrics 对象（start_bar=Offset, text=Text），
+        收集到 _lyrics_by_track[track_id]，待 _build_model 后由 track.apply_lyrics 分配。
+        """
+        tracks: list[Lyrics] = []
+        for c in node:
+            if c.tag == 'Line':
+                tracks.append(self._parse_lyrics_line(c))
+        self._lyrics_by_track[track_id] = tracks
+
+    def _parse_lyrics_line(self, node: ET.Element) -> Lyrics:
+        """解析单条 <Line> → Lyrics(start_bar, text)"""
+        lyrics = Lyrics()
+        for c in node:
+            tag = c.tag
+            if tag == 'Offset':
+                # GPIF Offset 为 0-based 起始小节索引（与 alphaTab 一致）
+                # GP 文件为不可信数据，Offset 可能缺失/非数字，失败时回退 0
+                offset_text = (c.text or '').strip()
+                try:
+                    lyrics.start_bar = int(offset_text)
+                except ValueError:
+                    lyrics.start_bar = 0
+            elif tag == 'Text':
+                lyrics.text = c.text or ''
+        return lyrics
+
+    def _parse_beat_lyrics(self, node: ET.Element) -> list[str]:
+        """
+        解析 beat 级 <Lyrics> 节点 → list[str]（每条 <Line> 一项）
+
+        GPIF 结构:
+          <Lyrics><Line>Hel-lo</Line><Line>world</Line></Lyrics>
+
+        返回各 <Line> 的纯文本（未经 chunk 解析，逐拍已分好）。
+        """
+        lines: list[str] = []
+        for c in node:
+            if c.tag == 'Line':
+                lines.append(c.text or '')
+        return lines
 
     # ----- Notes 节点解析 -----
 

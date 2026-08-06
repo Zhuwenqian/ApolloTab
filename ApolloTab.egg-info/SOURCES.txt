@@ -20,6 +20,7 @@ ApolloTab/examples/render_tab.py
 ApolloTab/models/__init__.py
 ApolloTab/models/beat.py
 ApolloTab/models/chord.py
+ApolloTab/models/lyrics.py
 ApolloTab/models/measure.py
 ApolloTab/models/note.py
 ApolloTab/models/song.py
@@ -41,8 +42,10 @@ ApolloTab/tests/test_chord_gp3.py
 ApolloTab/tests/test_chord_renderer.py
 ApolloTab/tests/test_constants.py
 ApolloTab/tests/test_gp7_integration.py
+ApolloTab/tests/test_lyrics.py
 ApolloTab/tests/test_models.py
 ApolloTab/tests/test_parser_dispatch.py
 ApolloTab/tests/test_part_configuration.py
 ApolloTab/utils/__init__.py
 ApolloTab/utils/constants.py
+ApolloTab/utils/cvd.py

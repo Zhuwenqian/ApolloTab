@@ -13,7 +13,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ApolloTab"
-version = "1.5.0"
+version = "1.6.0"
 description = "Guitar Pro file parsing, rendering, and audio playback engine library"
 readme = "README.md"
 license = "LGPL-2.1"
@@ -97,7 +97,7 @@ exclude = ["venv*", "tests*", "__pycache__*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["venv", "dist", "build", "ApolloTab.egg-info"]
+extend-exclude = ["venv", "dist", "build", "ApolloTab.egg-info", "*.md"]
 
 [tool.ruff.lint]
 # 规则集选择:

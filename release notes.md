@@ -1,85 +1,129 @@
 # ApolloTab Release Notes
 
-## v1.5.0
+## v1.6.0
 
-This release introduces **static type checking with mypy** across the entire
-core library, hardens function signatures throughout the codebase, and wires a
-dedicated **typecheck job** into CI.
-
----
-
-## Type Checking
-
-### mypy Configuration and CI
-- A complete `[tool.mypy]` section is added to `pyproject.toml` with
-  `python_version = "3.11"`, `disallow_untyped_defs`, `no_implicit_optional`,
-  `warn_return_any`, and `warn_unused_configs`. The check entry point is
-  `ApolloTab/__init__.py`, which through `follow_imports` exercises the full
-  core import graph.
-- Third-party libraries without `py.typed` stubs (`guitarpro`, `fluidsynth`)
-  are silenced via per-module `ignore_missing_imports`. Unused override
-  entries (`guitarpro.*`, `numpy`, `numpy.*`) were pruned to keep
-  `warn_unused_configs` clean.
-- A new `typecheck` job in `.github/workflows/ci.yml` runs `mypy` on
-  `ubuntu-latest` with Python 3.12 and fails the build on any type error.
-- `PyQt5-stubs>=5.15.6.0` is added to the `dev` dependency group so Qt-related
-  functions receive full type checking.
-
-### Signature and Type Fixes
-- **`player.py`**: 14 parameters changed from implicit-`None` defaults to
-  explicit `T | None = None`; `measure_entries` / `num_to_global` / `groups`
-  annotated as `dict[...]`; five dictionary-value returns wrapped in `float()`
-  to satisfy `no-any-return`; the `if note_callback:` guard switched to
-  `is not None` to fix `truthy-function`; `__del__` / `set_theme` /
-  `update_playhead` and the module-level `render_gtp_to_images` gained return
-  annotations.
-- **`tab_renderer.py`**: eleven drawing methods (`_draw_note_fret`,
-  `_draw_technique_marks`, `_draw_slide_line`, `_draw_hammer_on_arc`,
-  `_draw_bend_indicator`, `_draw_technique_text_labels`, `_draw_stem`,
-  `_draw_beam_flags`, `_draw_rest_symbol`, `_draw_info_bar`,
-  `_draw_time_signature`) now declare `note` / `beat` / `measure` parameters as
-  `GTPNote` / `GTPBeat` / `GTPMeasure`; `m_layout` widened to
-  `MeasureLayout | None`; `drawText` flags wrapped with `int()` and
-  `drawPolygon` wrapped with `QPolygon(...)` to match PyQt5-stubs overloads;
-  `tech_beats` annotated; `chord` access guarded against `None`.
-- **`gpif_parser.py`**: `_GpifRhythm`, `_GpifSound`, and `GP7Parser.__init__`
-  annotated `-> None`; the `self.__init__()` reset call was refactored into a
-  dedicated `_reset_state()` method to eliminate the
-  `instance.__init__` unsoundness warning; `_parse_dom`, `_parse_score_node`,
-  and `_build_model` open with `assert self._song is not None` to narrow the
-  `GTPSong | None` type; `mb_data` / `bar_data` annotated as `dict[str, Any]`.
-
-### Data Model Adjustments
-- **`GTPNote.vibrato`** (`models/note.py`): new `VibratoType | None` field.
-  GP7/GP8 `<Vibrato>` Slight/Wide markers now land as the enum, ready for
-  sine-wave vibrato synthesis in the MIDI path.
-- **`BendData.bend_type`** type changed from `str` to `BendType | str` so the
-  GP3-5 path (which passes a string) and the GP7/GP8 path (which passes a
-  `BendType` enum) are both type-correct.
-
-### Dynamic Attribute Handling
-- The render-time `_parent_beat` reference is now assigned via `setattr` and
-  read via `getattr(note, '_parent_beat', None)` in `_draw_slide_line` and
-  `_draw_hammer_on_arc`. This avoids the mypy `attr-defined` error without
-  polluting the `GTPNote` dataclass with a render-only field, while a
-  targeted `# noqa: B010` keeps ruff happy.
+This release adds two user-facing features — **lyrics (歌词) parsing &
+rendering** and **CVD (color vision deficiency) simulation** — both ported
+from the alphaTab reference implementation. It is a backward-compatible
+minor-version bump.
 
 ---
 
-## Examples
+## Lyrics
 
-The three example scripts gained return-type annotations:
-- `examples/basic_parse.py` — `main() -> None`, `format_tuning(tuple[int, ...]) -> str`
-- `examples/render_tab.py` — `main() -> None`, `batch_render(...) -> None`
-- `examples/audio_playback.py` — `main() -> None`, `show_progress(...) -> None`
+A complete lyrics pipeline, from raw Guitar Pro text through to rendered
+output below the tab staff.
+
+### Data Model — `models/lyrics.py` (new)
+- New `Lyrics` class (ported from alphaTab `Lyrics.ts`) representing a single
+  lyrics line: `start_bar`, `text`, and the parsed `chunks`.
+- `Lyrics.finish()` runs a character-level state machine (`_LyricsState`:
+  `IGNORE_SPACES` / `BEGIN` / `TEXT` / `COMMENT` / `DASH`) that splits raw GP
+  lyrics text into syllable chunks with identical semantics to alphaTab:
+  - spaces / newlines / tabs → syllable boundaries
+  - `+` → merge syllables (becomes space)
+  - `[..]` → comment (only at chunk start)
+  - `-` → hyphenation (kept trailing on the syllable)
+  - trailing `_` → trimmed (`"You____"` → `"You"`)
+- `Lyrics` is exported from the top-level package (`from ApolloTab import Lyrics`).
+
+### Track Assignment — `models/track.py`
+- New `GTPTrack.apply_lyrics(lyrics_list)` distributes chunked lyrics onto
+  beats, mirroring alphaTab `Track.applyLyrics`:
+  - each line parsed via `finish()`, then chunks assigned in order to
+    **note-bearing beats** (rest beats and empty beats are skipped)
+  - `start_bar` offsets the starting measure; assignment runs across the
+    flattened beat sequence (cross-measure)
+  - `beat.lyrics` is a `list[str]` whose length equals the number of lines;
+    the `li`-th line's chunk is written to `beat.lyrics[li]`
+  - gracefully stops when chunks run out or beats are exhausted (no crash)
+
+### Parsing
+- **GP7/GP8** (`parser/gpif_parser.py`): both lyrics encodings are handled
+  - track-level `<Lyrics><Line><Offset>..</Offset><Text>..</Text></Line>`
+    collected into `_lyrics_by_track` and applied after `_build_model`
+  - beat-level `<Lyrics><Line>..</Line>` written directly to `beat.lyrics`;
+    when present, `_skip_apply_lyrics` short-circuits the track-level apply
+    (matching alphaTab precedence)
+- **GP3-5** (`parser/gtp_parser.py`): new `_apply_song_lyrics()` maps the
+  pyguitarpro song-level `Lyrics` object onto the target track via
+  `trackChoice` (1-based → 0-based), taking non-empty lines and converting
+  `startingMeasure` (1-based) to `start_bar` (0-based). Out-of-range
+  `trackChoice` is skipped safely.
+
+### Layout — `renderer/layout_engine.py`
+- `SystemLayout` gains `y_lyrics_top` and `lyrics_line_count`.
+- After measures are laid out, the engine scans the system's beats for the
+  max `len(beat.lyrics)` and, when lyrics exist, reserves a lyrics band
+  below the stem area (`LYRICS_TOP_PADDING` + `lyrics_line_count *
+  LYRICS_LINE_PITCH`), expanding `y_bottom` so the next system doesn't
+  overlap. Systems without lyrics are unaffected.
+
+### Rendering — `renderer/tab_renderer.py`
+- New `_draw_lyrics(painter, system)` draws the lyrics band (ported from
+  alphaTab `LyricsGlyph` / lyrics effect band):
+  - centered on each beat's `x_center`, multi-line stacked by
+    `LYRICS_LINE_PITCH`, baseline computed from `y_lyrics_top`
+  - achromatic text using `COLOR_TEXT` (lyrics do **not** participate in CVD)
+  - no-op when `lyrics_line_count == 0` / `y_lyrics_top == 0`
+- New constants in `RenderConfig`: `LYRICS_FONT_FAMILY` (`Arial`),
+  `LYRICS_FONT_SIZE` (10), `LYRICS_LINE_PITCH` (16), `LYRICS_TOP_PADDING` (6).
+
+---
+
+## CVD (Color Vision Deficiency) Simulation
+
+An accessibility (a11y) feature that lets designers/developers preview how
+the rendered tab appears to users with color vision deficiencies (~8% of
+men, ~0.5% of women).
+
+### Module — `utils/cvd.py` (new, self-contained)
+- Brettel/Viénot/Mollon (1997) + Machado et al. (2009) 3×3 simulation
+  matrices for six CVD types: `protanopia` / `deuteranopia` / `tritanopia`
+  (dichromacy) and `protanomaly` / `deuteranomaly` / `tritanomaly`
+  (anomalous trichromacy). Matrices are row-normalized (luminance preserved).
+- `apply_cvd_to_color(QColor, cvd_type)` / `apply_cvd_to_hex(hex, cvd_type)`:
+  normalize RGB to [0,1], left-multiply by the matrix, clip, and restore
+  alpha. `'none'` / unknown types return the input unchanged.
+- `is_valid_cvd(cvd_type)` validator.
+- Self-contained (depends only on PyQt5 `QColor`) so the ApolloTab package
+  does not reverse-depend on the app layer's `core/cvd.py`; the two copies
+  are kept in sync manually.
+
+### Renderer Integration — `renderer/tab_renderer.py`
+- `TabRenderer.set_cvd(cvd_type)` applies the CVD transform to the current
+  theme's `COLOR_*` entries and stores the result in `cfg.theme` (and syncs
+  the layout engine). All 30+ color read-sites pick up the new palette
+  automatically — no per-call-site changes needed.
+- `current_cvd_type` property.
+- Internally keeps a pristine `_base_theme` (no CVD) so `set_theme` and
+  `set_cvd` compose in any order: switching theme preserves the active CVD,
+  and switching CVD re-applies to the new theme. Invalid `cvd_type` is
+  logged and ignored (no exception, no render blocking). `cvd_type='none'`
+  restores the original theme colors with zero copy.
+
+### Player API — `player.py`
+- `GTPPlayer.set_cvd(cvd_type)` and `current_cvd_type` delegate to the inner
+  renderer, mirroring the existing `set_theme` / `current_theme_name`
+  pattern.
+
+---
+
+## Tooling
+
+- `pyproject.toml`: ruff `extend-exclude` now includes `"*.md"` so markdown
+  files (e.g. `README.md`) are skipped by both `ruff check` and
+  `ruff format`. This prevents ruff 0.16.x from reformatting Python code
+  fences inside prose docs, without weakening source-file enforcement.
 
 ---
 
 ## Maintenance
 
-- Version bumped from `1.4.0` to `1.5.0` in `pyproject.toml` and
+- Version bumped from `1.5.0` to `1.6.0` in `pyproject.toml` and
   `ApolloTab/__init__.py`.
-- `readme/功能更新.md` records the v1.5.0 changelog.
+- `Lyrics` added to the public API (`ApolloTab.__all__`).
+- `readme/功能更新.md` records the v1.6.0 changelog.
 
 ---
 
@@ -87,12 +131,16 @@ The three example scripts gained return-type annotations:
 
 - `mypy` — Success: no issues found (1 source file).
 - `ruff check` / `ruff format --check` — all green.
-- `pytest` — 305 passed, 6 skipped (coverage 57.11%, above the 40% gate).
-  The 6 skips are pre-existing platform limitations (Qt offscreen on
-  macOS/Windows, missing `.gp3` samples), not regressions.
+- `pytest` — 331 passed, 9 skipped (coverage 59.39%, above the 40% gate).
+  The 9 skips are pre-existing platform limitations (Qt offscreen rendering
+  on macOS/Windows, missing `.gp3` samples) — not regressions. New
+  `test_lyrics.py` contributes 26 passing cases covering chunk parsing,
+  beat assignment, GP3-5 mapping, layout space reservation, and the
+  renderer's `_draw_lyrics` no-op path.
 
 ---
 
 ## Dependencies
 
-No runtime dependency changes. `PyQt5-stubs` is a dev-only addition.
+No runtime dependency changes. CVD simulation uses PyQt5's `QColor` (already
+required for rendering); lyrics parsing uses only the standard library.
