@@ -62,11 +62,11 @@ from .parser import (
     GP7Parser,
     GpifParser,
     GTPParser,
-    PartConfiguration,  # 二进制配置解析器(v0.4.0新增)
     MusicXmlParser,
+    PartConfiguration,  # 二进制配置解析器(v0.4.0新增)
     parse_gp7,  # GP7/GP8 解析器(v0.4.0新增)
-    parse_musicxml,
     parse_gtp,  # GP3-5 解析器
+    parse_musicxml,
     parse_score,  # 智能调度函数(v0.4.0新增)
 )
 from .player import GTPPlayer, create_gtp_player, render_gtp_to_images

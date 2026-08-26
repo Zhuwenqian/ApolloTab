@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ApolloTab.utils.cvd
 色觉缺陷 (CVD / Color Vision Deficiency) 模拟模块 (自包含, 不依赖 app core.cvd).
@@ -21,10 +20,7 @@ ApolloTab.utils.cvd
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
-
 from PyQt5.QtGui import QColor
-
 
 # ============================================================
 # 6 种 CVD 类型的 3x3 模拟矩阵 (Brettel/Vienot/Mollon 1997 + Machado 2009 校准)
@@ -35,15 +31,15 @@ from PyQt5.QtGui import QColor
 # 矩阵已规整化, 每行之和 = 1.0 (亮度守恒)
 
 CVD_NONE: str = "none"
-CVD_PROTANOPIA: str = "protanopia"          # 红色盲 (no L-cones)
-CVD_DEUTERANOPIA: str = "deuteranopia"      # 绿色盲 (no M-cones)
-CVD_TRITANOPIA: str = "tritanopia"          # 蓝色盲 (no S-cones)
-CVD_PROTANOMALY: str = "protanomaly"        # 红色弱 (weak L-cones)
-CVD_DEUTERANOMALY: str = "deuteranomaly"    # 绿色弱 (weak M-cones)
-CVD_TRITANOMALY: str = "tritanomaly"        # 蓝色弱 (weak S-cones)
+CVD_PROTANOPIA: str = "protanopia"  # 红色盲 (no L-cones)
+CVD_DEUTERANOPIA: str = "deuteranopia"  # 绿色盲 (no M-cones)
+CVD_TRITANOPIA: str = "tritanopia"  # 蓝色盲 (no S-cones)
+CVD_PROTANOMALY: str = "protanomaly"  # 红色弱 (weak L-cones)
+CVD_DEUTERANOMALY: str = "deuteranomaly"  # 绿色弱 (weak M-cones)
+CVD_TRITANOMALY: str = "tritanomaly"  # 蓝色弱 (weak S-cones)
 
 # 矩阵字典: key = CVD 类型标识, value = 3x3 tuple of tuples
-CVD_MATRICES: Dict[str, Tuple[Tuple[float, ...], ...]] = {
+CVD_MATRICES: dict[str, tuple[tuple[float, ...], ...]] = {
     CVD_PROTANOPIA: (
         (0.567, 0.433, 0.000),
         (0.558, 0.442, 0.000),

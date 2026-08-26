@@ -107,13 +107,12 @@ class Lyrics:
                     self._add_chunk(s[start:p], skip_empty)
                     state = _LyricsState.IGNORE_SPACES
                     next_state = _LyricsState.BEGIN
-            elif state == _LyricsState.DASH:
-                if c != self._DASH:
-                    self._add_chunk(s[start:p], skip_empty)
-                    skip_space = True
-                    state = _LyricsState.IGNORE_SPACES
-                    next_state = _LyricsState.BEGIN
-                    continue
+            elif state == _LyricsState.DASH and c != self._DASH:
+                self._add_chunk(s[start:p], skip_empty)
+                skip_space = True
+                state = _LyricsState.IGNORE_SPACES
+                next_state = _LyricsState.BEGIN
+                continue
             p += 1
 
         # 文本结束时若仍处于 TEXT 态，收尾最后一个 chunk

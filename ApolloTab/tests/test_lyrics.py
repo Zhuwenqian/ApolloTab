@@ -22,6 +22,10 @@ from types import SimpleNamespace
 
 import pytest
 
+# offscreen Qt 由 conftest.py 统一设置
+from PyQt5.QtGui import QPainter, QPixmap
+from PyQt5.QtWidgets import QApplication
+
 from ApolloTab.models.beat import GTPBeat
 from ApolloTab.models.lyrics import Lyrics
 from ApolloTab.models.measure import GTPMeasure
@@ -36,11 +40,6 @@ from ApolloTab.renderer.layout_engine import (
     TabLayoutEngine,
 )
 from ApolloTab.utils.constants import NoteDuration, RenderConfig
-
-# offscreen Qt 由 conftest.py 统一设置
-from PyQt5.QtGui import QPainter, QPixmap
-from PyQt5.QtWidgets import QApplication
-
 
 # ============================================================
 # Fixtures
@@ -465,8 +464,8 @@ class TestRealGp7LyricsFiles:
         """渲染含歌词的样本不崩溃（Linux 端到端；其他平台仅解析层验证已覆盖）"""
         if sys.platform.startswith("win") or sys.platform == "darwin":
             pytest.skip("ApolloTab render() 在 Windows/macOS offscreen 模式下崩溃, 仅 Linux 跑")
-        from ApolloTab.renderer.tab_renderer import TabRenderer
         from ApolloTab.parser import parse_score
+        from ApolloTab.renderer.tab_renderer import TabRenderer
 
         song = parse_score(str(lyrics_sample))
         renderer = TabRenderer()

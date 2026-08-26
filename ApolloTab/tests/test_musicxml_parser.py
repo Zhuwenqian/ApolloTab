@@ -2,7 +2,6 @@ import zipfile
 
 from ApolloTab import parse_musicxml, parse_score, render_musicxml
 
-
 SCORE = '''<?xml version="1.0"?>
 <score-partwise version="4.0"><work><work-title>Importer Test</work-title></work>
 <part-list><score-part id="P1"><part-name>Guitar</part-name><midi-instrument id="P1-I1"><midi-program>31</midi-program></midi-instrument></score-part></part-list>
@@ -10,7 +9,8 @@ SCORE = '''<?xml version="1.0"?>
 
 
 def test_musicxml_parses_chords_metadata_and_dispatch(tmp_path, qapp):
-    path = tmp_path / 'score.musicxml'; path.write_text(SCORE, encoding='utf-8')
+    path = tmp_path / 'score.musicxml'
+    path.write_text(SCORE, encoding='utf-8')
     song = parse_score(str(path))
     assert song.title == 'Importer Test' and song.tempo == 96
     assert song.tracks[0].name == 'Guitar'
@@ -24,7 +24,10 @@ def test_musicxml_parses_chords_metadata_and_dispatch(tmp_path, qapp):
 def test_compressed_mxl_uses_container_rootfile(tmp_path):
     path = tmp_path / 'score.mxl'
     with zipfile.ZipFile(path, 'w') as archive:
-        archive.writestr('META-INF/container.xml', '<container><rootfiles><rootfile full-path="score.xml"/></rootfiles></container>')
+        archive.writestr(
+            'META-INF/container.xml',
+            '<container><rootfiles><rootfile full-path="score.xml"/></rootfiles></container>',
+        )
         archive.writestr('score.xml', SCORE)
     assert parse_musicxml(str(path)).track_count == 1
 
@@ -32,7 +35,8 @@ def test_compressed_mxl_uses_container_rootfile(tmp_path):
 def test_timewise_musicxml_is_normalized_to_tracks(tmp_path):
     xml = '''<score-timewise><part-list><score-part id="P1"><part-name>Bass</part-name></score-part></part-list>
     <measure number="1"><part id="P1"><attributes><divisions>1</divisions></attributes><note><pitch><step>E</step><octave>2</octave></pitch><duration>1</duration><type>quarter</type></note></part></measure></score-timewise>'''
-    path = tmp_path / 'timewise.xml'; path.write_text(xml, encoding='utf-8')
+    path = tmp_path / 'timewise.xml'
+    path.write_text(xml, encoding='utf-8')
     song = parse_musicxml(str(path))
     assert song.tracks[0].name == 'Bass'
     assert song.tracks[0].measures[0].beats[0].notes[0].midi_pitch == 40

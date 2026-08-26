@@ -390,22 +390,14 @@ class SynthEngine:
         _exe_dir = ""
         _cwd = ""
         _meipass = ""
-        try:
+        with contextlib.suppress(Exception):
             _script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             _exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             _cwd = os.path.abspath(os.getcwd())
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             _meipass = os.path.abspath(sys._MEIPASS)  # type: ignore[attr-defined]
-        except Exception:
-            pass
 
         # 搜索DLL的候选目录（按优先级排序）
         _dll_dirs = [

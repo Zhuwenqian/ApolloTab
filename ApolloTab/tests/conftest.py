@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from PyQt5.QtWidgets import QApplication
 
 # ============================================================
 # 路径常量
@@ -36,6 +37,24 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # 强制 Qt 使用 offscreen 平台插件 (CI / 无头环境友好)
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+# ============================================================
+# Fixtures: 共享 QApplication
+# ============================================================
+
+
+@pytest.fixture(scope="session", autouse=True)
+def qapp() -> QApplication:
+    """确保 QApplication 实例在任意 Qt 代码运行前已经存在。
+
+    无头环境(如 GitHub Actions offscreen)下, 在没有 QApplication 时创建
+    QPixmap/QPainter 等 Qt GUI 对象会导致原生 abort/segfault。本 fixture 在
+    整个测试会话开始时即创建唯一的 QApplication 实例, 并暴露为 ``qapp``
+    供各用例取用同一实例。
+    """
+    app = QApplication.instance() or QApplication(sys.argv)
+    yield app
 
 
 # ============================================================
