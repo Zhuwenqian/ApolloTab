@@ -17,12 +17,14 @@ from .binary_stylesheet import BinaryStylesheet
 from .gp7_parser import GP7Parser
 from .gpif_parser import GpifParser
 from .gtp_parser import GTPParser, parse_gtp
+from .musicxml_parser import MusicXmlParser, parse_musicxml
 from .part_configuration import PartConfiguration
 
 # 支持的文件扩展名(统一管理)
 GP3_5_EXTENSIONS = ('.gp3', '.gp4', '.gp5', '.gpx', '.gtp')  # GP3-5(PyGuitarPro 解析)
 GP7_8_EXTENSIONS = ('.gp',)  # GP7/GP8(原生解析)
-ALL_SUPPORTED_EXTENSIONS = GP3_5_EXTENSIONS + GP7_8_EXTENSIONS
+MUSICXML_EXTENSIONS = ('.musicxml', '.xml', '.mxl')
+ALL_SUPPORTED_EXTENSIONS = GP3_5_EXTENSIONS + GP7_8_EXTENSIONS + MUSICXML_EXTENSIONS
 
 
 def parse_score(file_path: str) -> GTPSong:
@@ -63,6 +65,8 @@ def parse_score(file_path: str) -> GTPSong:
     elif ext_lower in GP3_5_EXTENSIONS:
         # GP3-5 文件 → 使用 PyGuitarPro 解析器
         return parse_gtp(file_path)
+    elif ext_lower in MUSICXML_EXTENSIONS:
+        return parse_musicxml(file_path)
     else:
         raise ValueError(
             f"不支持的文件扩展名: {ext} (支持的扩展名: {', '.join(ALL_SUPPORTED_EXTENSIONS)})"
@@ -95,6 +99,8 @@ __all__ = [
     'GP7Parser',
     'GpifParser',
     'parse_gp7',
+    'MusicXmlParser',
+    'parse_musicxml',
     # 二进制配置解析器
     'BinaryStylesheet',
     'PartConfiguration',
@@ -103,5 +109,6 @@ __all__ = [
     # 扩展名常量
     'GP3_5_EXTENSIONS',
     'GP7_8_EXTENSIONS',
+    'MUSICXML_EXTENSIONS',
     'ALL_SUPPORTED_EXTENSIONS',
 ]

@@ -239,7 +239,6 @@ class TabRenderer:
 
         if not is_valid_cvd(cvd_type):
             import logging
-
             logging.getLogger(__name__).warning(
                 "[cvd] 无效的 CVD 类型: %s, 保持原值 %s", cvd_type, self._cvd_type
             )
@@ -267,12 +266,14 @@ class TabRenderer:
         """
         if cvd_type == "none" or cvd_type is None:
             return base
-        from ..utils.constants import ThemeConfig
         from ..utils.cvd import apply_cvd_to_hex
+        from ..utils.constants import ThemeConfig
 
         # base._colors 是 ThemeConfig.__init__ 设置的真实属性 (dict[str, hex]).
         # 直接访问: 若 base 不是 ThemeConfig (缺少 _colors), 应该 fail-fast 而非静默吞错.
-        new_colors = {k: apply_cvd_to_hex(v, cvd_type) for k, v in base._colors.items()}
+        new_colors = {
+            k: apply_cvd_to_hex(v, cvd_type) for k, v in base._colors.items()
+        }
         return ThemeConfig(colors=new_colors, theme_name=base.name)
 
     @property
@@ -2075,8 +2076,12 @@ def render_gtp(file_path: str, track_index: int = 0) -> list[QPixmap]:
         >>> pages = render_gtp("song.gp5", track_index=2)
         >>> print(f"共 {len(pages)} 页")
     """
-    from ..parser.gtp_parser import parse_gtp
-
-    song = parse_gtp(file_path)
+    from ..parser import parse_score
+    song = parse_score(file_path)
     renderer = TabRenderer()
     return renderer.render(song, track_index=track_index)
+
+
+def render_musicxml(file_path: str, track_index: int = 0) -> list[QPixmap]:
+    """Parse and render a MusicXML (including compressed ``.mxl``) score."""
+    return render_gtp(file_path, track_index)

@@ -14,7 +14,6 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .lyrics import Lyrics
 from .measure import GTPMeasure
 
 
@@ -148,7 +147,7 @@ class GTPTrack:
         """获取该轨道所有小节的总拍数"""
         return sum(len(m.beats) for m in self.measures)
 
-    def apply_lyrics(self, lyrics_list: list[Lyrics]) -> None:
+    def apply_lyrics(self, lyrics_list: list["Lyrics"]) -> None:
         """
         将多条歌词行分配到各拍 - 移植自 alphaTab Track.applyLyrics
 

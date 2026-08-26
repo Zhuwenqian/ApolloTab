@@ -50,6 +50,7 @@
 import contextlib
 import os
 import platform
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -380,9 +381,39 @@ class SynthEngine:
         _here = os.path.dirname(os.path.abspath(__file__))
         _root = os.path.normpath(os.path.join(_here, '..', '..'))
 
+        # 方法2: 推导可能的运行时根目录 (venv 安装时模块位置不在项目根目录)
+        #   - sys.argv[0]: 入口脚本/可执行文件路径
+        #   - sys.executable: Python 解释器路径
+        #   - os.getcwd(): 当前工作目录
+        #   - sys._MEIPASS: PyInstaller 解压目录
+        _script_dir = ""
+        _exe_dir = ""
+        _cwd = ""
+        _meipass = ""
+        try:
+            _script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        except Exception:
+            pass
+        try:
+            _exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        except Exception:
+            pass
+        try:
+            _cwd = os.path.abspath(os.getcwd())
+        except Exception:
+            pass
+        try:
+            _meipass = os.path.abspath(sys._MEIPASS)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
         # 搜索DLL的候选目录（按优先级排序）
         _dll_dirs = [
             _root,  # 项目根目录
+            _script_dir,  # 入口脚本/可执行文件所在目录
+            _exe_dir,  # Python 解释器/可执行文件所在目录
+            _cwd,  # 当前工作目录
+            _meipass,  # PyInstaller 解压目录
             os.path.join(_root, "_internal"),  # PyInstaller打包后的_internal文件夹
             os.path.join(_root, "fluidsnyth", "bin"),  # FluidSynth Windows发行版(常见拼写)
             os.path.join(_root, "fluidsynth", "bin"),  # 正确拼写的发行版目录
@@ -390,7 +421,7 @@ class SynthEngine:
         ]
 
         for _d in _dll_dirs:
-            if os.path.isfile(os.path.join(_d, "libfluidsynth-3.dll")):
+            if _d and os.path.isfile(os.path.join(_d, "libfluidsynth-3.dll")):
                 print(f"[SynthEngine] 找到DLL: {_d}")
                 return _d
 

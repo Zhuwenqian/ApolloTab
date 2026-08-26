@@ -27,6 +27,7 @@ from ApolloTab.parser import (
     ALL_SUPPORTED_EXTENSIONS,
     GP3_5_EXTENSIONS,
     GP7_8_EXTENSIONS,
+    MUSICXML_EXTENSIONS,
     GTPParser,
     parse_gp7,
     parse_score,
@@ -49,7 +50,9 @@ class TestExtensionConstants:
             assert ext in GP3_5_EXTENSIONS
 
     def test_all_supported_is_union(self):
-        assert set(ALL_SUPPORTED_EXTENSIONS) == set(GP3_5_EXTENSIONS) | set(GP7_8_EXTENSIONS)
+        assert set(ALL_SUPPORTED_EXTENSIONS) == (
+            set(GP3_5_EXTENSIONS) | set(GP7_8_EXTENSIONS) | set(MUSICXML_EXTENSIONS)
+        )
 
     def test_no_overlap_between_groups(self):
         assert set(GP3_5_EXTENSIONS) & set(GP7_8_EXTENSIONS) == set()
